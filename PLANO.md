@@ -159,22 +159,22 @@ Estado: **planejamento → implementação concluída** (atualizado em 26/11/202
 
 # Fase 2 — roadmap estendido
 
-Estado: **modo meta/planejamento → implementação** (26/11/2026).
+Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes finais de QR/SHA-256/tema.
 
 | # | Melhoria | Esforço | Status |
 |---|----------|---------|--------|
-| 11 | Exportar vencimentos para calendário `.ics` | Rápido | ⬜ Planejado |
-| 12 | Badge no ícone + atalhos na PWA | Rápido | ⬜ Planejado |
-| 13 | Custo por km rodado | Rápido | ⬜ Planejado |
-| 14 | Tema claro/escuro | Rápido | ⬜ Planejado |
-| 15 | Testes automatizados (smoke) | Rápido | ⬜ Planejado |
-| 16 | Abastecimentos (km/L, custo por km, autonomia) | Médio | ⬜ Planejado |
-| 17 | Fotos e notas fiscais (IndexedDB + compressão) | Médio | ⬜ Planejado |
-| 18 | Sincronização entre dispositivos (link/QR, sem servidor) | Médio | ⬜ Planejado |
-| 19 | Push real (Web Push + VAPID) | Médio | ⬜ Planejado |
-| 20 | OCR do hodômetro (Shape Detection API) | Grande | ⬜ Planejado |
-| 21 | Modo oficina (assinatura + código de validação) | Grande | ⬜ Planejado |
-| 22 | Internacionalização (pt-BR / en / es) | Grande | ⬜ Planejado |
+| 11 | Exportar vencimentos para calendário `.ics` | Rápido | ✅ Concluído |
+| 12 | Badge no ícone + atalhos na PWA | Rápido | ✅ Concluído |
+| 13 | Custo por km rodado | Rápido | ✅ Concluído |
+| 14 | Tema claro/escuro | Rápido | ✅ Concluído |
+| 15 | Testes automatizados (smoke) | Rápido | ✅ Concluído |
+| 16 | Abastecimentos (km/L, custo por km, autonomia) | Médio | ✅ Concluído |
+| 17 | Fotos e notas fiscais (IndexedDB + compressão) | Médio | ✅ Concluído |
+| 18 | Sincronização entre dispositivos (link/QR, sem servidor) | Médio | ✅ Concluído |
+| 19 | Push real (Web Push + VAPID) | Médio | ✅ Concluído |
+| 20 | OCR do hodômetro (Shape Detection API) | Grande | ✅ Concluído |
+| 21 | Modo oficina (assinatura + código de validação) | Grande | ✅ Concluído |
+| 22 | Internacionalização (pt-BR / en / es) | Grande | ✅ Concluído |
 
 ## Decisões técnicas
 
@@ -189,7 +189,8 @@ Estado: **modo meta/planejamento → implementação** (26/11/2026).
 - **19** — `PushManager.subscribe()` com chave VAPID configurável; **sem servidor não há disparo remoto** — o app registra o endpoint e mostra onde configurá-lo.
 - **20** — `TextDetector` nativo (Chrome/Android) lendo a foto do painel; fallback manual. Sem modelo pesado, mantém PWA offline.
 - **21** — assinatura em `<canvas>` embutida na ordem de serviço + código curto SHA-256 dos dados impressos. Validação pública exige backend (fora do escopo estático).
-- **22** — dicionário `I18N` com 3 idiomas + `applyLang()` varrendo `[data-i18n]`; `state.ui.lang`.
+- **22** — dicionário `I18N` com 3 idiomas + `applyLang()` varrendo nós de texto e atributos (`TreeWalker`); `state.ui.lang`.
+- **18/21** — QR gerado em SVG por `qrcode.js` local (MIT, sem rede em runtime) e código de validação SHA-256 via `crypto.subtle` com fallback.
 
 ## Ordem de implementação
 

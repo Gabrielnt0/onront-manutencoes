@@ -10,7 +10,7 @@ const sw = read('sw.js');
 const manifest = JSON.parse(read('manifest.webmanifest'));
 
 test('elementos obrigatórios da interface existem', () => {
-  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
+  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'syncQr', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
   ids.forEach(id => assert.match(html, new RegExp(`id="${id}"`), `falta #${id}`));
 });
 
@@ -28,15 +28,18 @@ test('recursos avançados estão presentes', () => {
   assert.ok(css.includes('[data-theme="light"]'));
   assert.ok(app.includes('  en: {'));
   assert.ok(app.includes('  es: {'));
+  assert.ok(app.includes('renderSyncQr'));
+  assert.ok(app.includes("crypto.subtle.digest('SHA-256'"));
+  assert.ok(app.includes("prefers-color-scheme: light"));
 });
 
 test('manifesto e service worker apontam para a versão atual', () => {
   assert.equal(manifest.shortcuts.length, 2);
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=km')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=checklist')));
-  assert.ok(sw.includes('onront-manutencoes-v14'));
-  ['styles.css?v=13', 'bike3d.js?v=13', 'app.js?v=13'].forEach(asset => assert.ok(sw.includes(asset)));
-  html.match(/src="(app|bike3d)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=13')));
+  assert.ok(sw.includes('onront-manutencoes-v15'));
+  ['styles.css?v=14', 'bike3d.js?v=14', 'qrcode.js?v=14', 'app.js?v=14'].forEach(asset => assert.ok(sw.includes(asset)));
+  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=14')));
 });
 
 test('nenhuma dependência externa em runtime', () => {

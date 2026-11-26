@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
   <title>ONRONT Manutenções</title>
 </head>
 <body>
@@ -287,6 +287,7 @@
     <div class="dialog-title"><h2>Sincronização por link</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
     <p class="hint">O link contém uma cópia comprimida dos dados. Copie e abra em outro dispositivo para transferir. Nada é enviado para a nuvem.</p>
     <textarea id="syncText" rows="5" spellcheck="false" placeholder="Cole aqui o link de sincronização"></textarea>
+    <div id="syncQr" class="sync-qr"></div>
     <button class="primary" id="syncApplyButton" type="button">Aplicar dados do link</button>
     <button class="secondary" id="syncCopyButton" type="button">Copiar link gerado</button>
   </dialog>
@@ -301,7 +302,8 @@
 
   <div class="service-order" id="serviceOrder" aria-hidden="true"></div>
 
-  <script src="bike3d.js?v=13" defer></script>
-  <script src="app.js?v=13" defer></script>
+  <script src="bike3d.js?v=14" defer></script>
+  <script src="qrcode.js?v=14" defer></script>
+  <script src="app.js?v=14" defer></script>
 </body>
 </html>

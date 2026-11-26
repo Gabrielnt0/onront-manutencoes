@@ -3,6 +3,7 @@ const DAY = 86400000;
 
 const today = () => new Date().toISOString().slice(0, 10);
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const defaultTheme = () => matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 const defaultState = () => ({
   bike: { id: uid(), name: 'TVS Sport', year: '', currentKm: 0, historyUnknown: false },
   odometerHistory: [],
@@ -12,7 +13,7 @@ const defaultState = () => ({
   notificationsOn: false,
   roster: [],
   fuelLog: [],
-  ui: { theme: 'dark', lang: 'pt' },
+  ui: { theme: defaultTheme(), lang: 'pt' },
   push: { enabled: false, vapid: '', endpoint: '' },
   signature: null,
   maintenance: [
@@ -204,7 +205,7 @@ function loadState() {
     saved.inspection = saved.inspection && typeof saved.inspection === 'object' ? saved.inspection : null;
     saved.notificationsOn = Boolean(saved.notificationsOn);
     saved.fuelLog = Array.isArray(saved.fuelLog) ? saved.fuelLog : [];
-    saved.ui = { theme: 'dark', lang: 'pt', ...(saved.ui || {}) };
+    saved.ui = { theme: defaultTheme(), lang: 'pt', ...(saved.ui || {}) };
     saved.push = { enabled: false, vapid: '', endpoint: '', ...(saved.push || {}) };
     saved.signature = saved.signature || null;
     if (!saved.bike.id) saved.bike.id = uid();
@@ -386,9 +387,10 @@ function renderFuel() {
   const liters = entries.reduce((sum, entry) => sum + (Number(entry.liters) || 0), 0);
   $('#fuelStats').innerHTML = `<div><span>Total gasto</span><strong>${spent > 0 ? formatMoney(spent) : '—'}</strong></div><div><span>Litros</span><strong>${liters > 0 ? liters.toFixed(1).replace('.', ',') : '—'}</strong></div><div><span>Preço médio</span><strong>${liters > 0 ? formatMoney(spent / liters) + '/L' : '—'}</strong></div>`;
   if (!entries.length) { container.innerHTML = `<div class="empty">${t('Nenhum abastecimento registrado.')}</div>`; return; }
+  const maxLiters = Math.max(...entries.map(entry => Number(entry.liters) || 0), 1);
   container.innerHTML = entries.slice(0, 20).map(entry => `
     <article class="fuel-entry">
-      <div><strong>${formatMoney(Number(entry.price) || 0)}</strong><span>${escapeHtml(entry.date || '')} · ${formatNumber(entry.km)} km${entry.station ? ` · ${escapeHtml(entry.station)}` : ''}</span></div>
+      <div><strong>${formatMoney(Number(entry.price) || 0)}</strong><span>${escapeHtml(entry.date || '')} · ${formatNumber(entry.km)} km${entry.station ? ` · ${escapeHtml(entry.station)}` : ''}</span><div class="fuel-bar"><i style="width:${Math.round((Number(entry.liters) || 0) / maxLiters * 100)}%"></i></div></div>
       <div class="fuel-entry-side"><strong>${Number(entry.liters).toFixed(2).replace('.', ',')} L</strong><button type="button" data-fuel-edit="${escapeHtml(entry.id)}" aria-label="Editar">✎</button></div>
     </article>`).join('');
   container.querySelectorAll('[data-fuel-edit]').forEach(button => button.addEventListener('click', () => openFuel(state.fuelLog.find(entry => entry.id === button.dataset.fuelEdit))));
@@ -610,7 +612,7 @@ $('#confirmDeliveryReviewButton').addEventListener('click', () => {
   saveState();
 });
 $('#exportButton').addEventListener('click', () => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' })); link.download = `moto-em-dia-${today()}.json`; link.click(); URL.revokeObjectURL(link.href); });
-$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: 'dark', lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
+$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: defaultTheme(), lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
 document.querySelectorAll('dialog .close').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 
 // --- Inspeção condicional (checklist) ---
@@ -770,9 +772,26 @@ async function applySyncLink(hash) {
   state = data; saveState();
   history.replaceState(null, '', location.pathname + location.search);
 }
+function renderSyncQr(link) {
+  const container = $('#syncQr');
+  container.innerHTML = '';
+  if (typeof qrcode !== 'function') return;
+  try {
+    const qr = qrcode(0, 'L');
+    qr.addData(link);
+    qr.make();
+    const count = qr.getModuleCount();
+    const size = 232, cell = size / count;
+    let rects = '';
+    for (let row = 0; row < count; row++) for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) rects += `<rect x="${(col * cell).toFixed(2)}" y="${(row * cell).toFixed(2)}" width="${cell.toFixed(2)}" height="${cell.toFixed(2)}"/>`;
+    }
+    container.innerHTML = `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="QR de sincronização"><rect width="${size}" height="${size}" fill="#fff"/>${rects}</svg>`;
+  } catch { /* link muito longo para QR: o texto continua disponível */ }
+}
 let syncLink = '';
 $('#syncExportButton').addEventListener('click', async () => {
-  try { syncLink = await encodeSyncLink(); $('#syncText').value = syncLink; $('#syncDialog').showModal(); }
+  try { syncLink = await encodeSyncLink(); $('#syncText').value = syncLink; renderSyncQr(syncLink); $('#syncDialog').showModal(); }
   catch { alert('Não foi possível gerar o link.'); }
 });
 $('#syncImportButton').addEventListener('click', () => { $('#syncText').value = ''; $('#syncDialog').showModal(); });
@@ -801,7 +820,19 @@ $('#signatureButton').addEventListener('click', () => {
   if (state.signature) { const image = new Image(); image.onload = () => signatureCtx.drawImage(image, 0, 0, signatureCanvas.width, signatureCanvas.height); image.src = state.signature; }
   $('#signatureDialog').showModal();
 });
-const orderCode = () => { let hash = 0; const text = JSON.stringify({ bike: state.bike, km: state.bike.currentKm, log: state.serviceLog.length, date: today() }); for (let index = 0; index < text.length; index++) hash = (hash * 31 + text.charCodeAt(index)) | 0; return `OS-${today().replace(/-/g, '')}-${Math.abs(hash).toString(36).toUpperCase().slice(0, 6)}`; };
+async function orderCode() {
+  const text = JSON.stringify({ bike: state.bike, km: state.bike.currentKm, log: state.serviceLog.length, date: today() });
+  let code;
+  if (crypto?.subtle) {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+    code = [...digest].slice(0, 3).map(byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+  } else {
+    let hash = 0;
+    for (let index = 0; index < text.length; index++) hash = (hash * 31 + text.charCodeAt(index)) | 0;
+    code = Math.abs(hash).toString(36).toUpperCase().padStart(6, '0').slice(0, 6);
+  }
+  return `OS-${today().replace(/-/g, '')}-${code}`;
+}
 
 // --- Exportar CSV ---
 $('#csvButton').addEventListener('click', () => {
@@ -832,7 +863,8 @@ $('#shareButton').addEventListener('click', async () => {
 });
 
 // --- Ordem de serviço (impressão / PDF) ---
-$('#printOrderButton').addEventListener('click', () => {
+$('#printOrderButton').addEventListener('click', async () => {
+  const code = await orderCode();
   const order = { overdue: 0, warning: 1, ok: 2 };
   const analyzed = state.maintenance.map(item => ({ item, data: maintenanceStatus(item) }));
   const counts = { ok: 0, warning: 0, overdue: 0 };
@@ -849,7 +881,7 @@ $('#printOrderButton').addEventListener('click', () => {
       <div><strong>Quilometragem:</strong> ${formatNumber(state.bike.currentKm)} km</div>
       <div><strong>Situação:</strong> ${counts.ok} em dia · ${counts.warning} atenção · ${counts.overdue} vencidas</div>
       <div><strong>Serviços registrados:</strong> ${state.serviceLog.length}</div>
-      <div><strong>Código de validação:</strong> ${orderCode()}</div>
+      <div><strong>Código de validação:</strong> ${code}</div>
     </div>
     <h2>Itens de manutenção</h2>
     <table><thead><tr><th>Item</th><th>Status</th><th>Uso do ciclo</th><th>Próxima referência</th></tr></thead><tbody>
@@ -860,7 +892,7 @@ $('#printOrderButton').addEventListener('click', () => {
       ${recent.map(entry => `<tr><td>${entry.date ? escapeHtml(formatDate(new Date(`${entry.date}T12:00:00`))) : '—'}</td><td>${escapeHtml(entry.name)}</td><td>${formatNumber(entry.km)}</td><td>${Number(entry.cost) > 0 ? formatMoney(Number(entry.cost)) : '—'}</td></tr>`).join('')}
     </tbody></table>` : '<p>Nenhum serviço registrado.</p>'}
     <div class="so-sign"><div>${state.signature ? `<img src="${state.signature}" alt="Assinatura" class="so-signature">` : ''}Assinatura do responsável</div><div>Carimbo da oficina</div></div>
-    <p class="so-foot">Documento gerado pelo ONRONT Manutenções · código ${orderCode()}. Desgaste, uso severo e poeira podem exigir antecipação dos intervalos.</p>`;
+    <p class="so-foot">Documento gerado pelo ONRONT Manutenções · código ${code}. Desgaste, uso severo e poeira podem exigir antecipação dos intervalos.</p>`;
   $('#settingsDialog').close();
   window.print();
 });
