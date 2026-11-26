@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101820">
+  <meta name="description" content="ONRONT Manutenções — manutenção preventiva inteligente para motos.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css?v=11">
+  <title>ONRONT Manutenções</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ONRONT MANUTENÇÕES</p>
+        <h1 id="bikeName">TVS Sport</h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-button" id="bikesButton" aria-label="Garagem: trocar de moto">🏍️</button>
+        <button class="icon-button" id="settingsButton" aria-label="Editar dados da moto">⚙</button>
+      </div>
+    </header>
+
+    <section class="odometer-card">
+      <div>
+        <span>Quilometragem atual</span>
+        <strong><span id="currentKm">0</span> km</strong>
+      </div>
+      <button class="primary small" id="updateKmButton">Atualizar km</button>
+    </section>
+
+    <section class="summary" aria-label="Resumo das manutenções">
+      <article><strong id="okCount">0</strong><span>Em dia</span></article>
+      <article class="warning"><strong id="warningCount">0</strong><span>Atenção</span></article>
+      <article class="danger"><strong id="overdueCount">0</strong><span>Vencidas</span></article>
+    </section>
+
+    <section class="smart-card" aria-labelledby="smartTitle">
+      <div class="smart-header">
+        <div>
+          <p class="eyebrow">ASSISTENTE PREVENTIVO</p>
+          <h2 id="smartTitle">Previsão inteligente</h2>
+        </div>
+        <div class="health-score"><strong id="healthScore">100</strong><span>/100</span></div>
+      </div>
+      <div class="smart-grid">
+        <div><span>Ritmo de uso</span><strong id="usageRate">Aprendendo</strong></div>
+        <div><span>Próximo marco</span><strong id="nextMilestone">5.000 km</strong></div>
+        <div><span>Custo acumulado</span><strong id="totalCost">—</strong></div>
+        <div><span>Serviços registrados</span><strong id="serviceCount">0</strong></div>
+      </div>
+      <div id="usageChart" class="usage-chart" role="img" aria-label="Gráfico de uso do hodômetro"></div>
+      <p id="smartInsight" class="smart-insight"></p>
+      <p id="learningHint" class="learning-hint"></p>
+      <button class="secondary hidden" id="confirmDeliveryReviewButton" type="button">Registrar revisão de entrega</button>
+    </section>
+
+    <section class="visual-guide" aria-labelledby="visualGuideTitle">
+      <div class="section-heading">
+        <div><p class="eyebrow">GUIA VISUAL</p><h2 id="visualGuideTitle">Explore sua moto</h2></div>
+        <span class="model-badge">Modelo 3D interativo</span>
+      </div>
+      <div class="angle-tabs" id="angleTabs" role="group" aria-label="Vistas rápidas do modelo 3D"></div>
+      <div class="bike-viewer" id="bikeViewer">
+        <canvas id="bike3dCanvas" role="img" aria-label="Modelo tridimensional interativo aproximado da TVS Sport"></canvas>
+        <span class="swipe-hint">Arraste para girar • pinça ou roda para zoom</span>
+      </div>
+      <article class="part-panel" id="partPanel" aria-live="polite">
+        <div class="part-panel-icon" id="partIcon">☝️</div>
+        <div>
+          <strong id="partTitle">Toque em um ponto</strong><p id="partDescription">Veja onde ficam os principais itens de manutenção.</p>
+          <div class="part-wear hidden" id="partWear">
+            <div class="wear-heading"><span>Uso estimado</span><strong id="partWearValue">0%</strong></div>
+            <span class="wear-track"><span id="partWearFill"></span></span>
+            <span class="wear-meta" id="partWearMeta"></span><span class="photo-estimate" id="partPhotoEstimate"></span>
+          </div>
+          <small id="partSafety">Representação visual aproximada.</small>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-heading">
+      <div>
+        <p class="eyebrow">PRÓXIMOS CUIDADOS</p>
+        <h2>Manutenções</h2>
+      </div>
+      <button class="text-button" id="addMaintenanceButton">+ Adicionar</button>
+    </section>
+
+    <article class="inspection-card" id="inspectionCard">
+      <div class="inspection-info">
+        <span class="inspection-icon" aria-hidden="true">✅</span>
+        <div><strong id="inspectionStatus">Nenhuma inspeção registrada</strong><span id="inspectionMeta">Verifique freios, pneus, corrente e luzes</span></div>
+      </div>
+      <button class="secondary small" id="openInspectionButton" type="button">Checklist</button>
+    </article>
+
+    <div id="maintenanceList" class="maintenance-list"></div>
+
+    <section class="section-heading">
+      <div><p class="eyebrow">LIVRO DE SERVIÇO</p><h2>Histórico</h2></div>
+      <span class="model-badge" id="serviceLogBadge">0 registros</span>
+    </section>
+    <div id="serviceLogList" class="service-log"></div>
+
+    <p class="disclaimer">Plano baseado no cronograma oficial da Mottu Sport ESD, revisão 2026. Desgaste, uso severo e poeira podem exigir antecipação. <a href="https://mottu.com.br/documents/manual-mottu-sport-esd.pdf" target="_blank" rel="noopener">Consultar manual da Mottu</a>.</p>
+  </main>
+
+  <dialog id="kmDialog">
+    <form method="dialog" id="kmForm">
+      <div class="dialog-title"><h2>Atualizar quilometragem</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <label>Quilometragem atual<input id="kmInput" type="number" min="0" step="1" inputmode="numeric" required></label>
+      <label class="checkbox-label"><input id="unknownHistoryInput" type="checkbox"> Moto seminova ou sem histórico de manutenção</label>
+      <p class="error" id="kmError" role="alert"></p>
+      <button class="primary" value="default">Salvar quilometragem</button>
+    </form>
+  </dialog>
+
+  <dialog id="maintenanceDialog">
+    <form method="dialog" id="maintenanceForm">
+      <div class="dialog-title"><h2 id="maintenanceDialogTitle">Nova manutenção</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <input id="maintenanceId" type="hidden">
+      <label>Item<input id="itemName" maxlength="50" placeholder="Ex.: Troca de óleo" required></label>
+      <div class="two-columns">
+        <label>Última troca (km)<input id="lastKm" type="number" min="0" step="1" inputmode="numeric" required></label>
+        <label>Intervalo (km)<input id="intervalKm" type="number" min="0" step="1" inputmode="numeric"></label>
+      </div>
+      <div class="two-columns">
+        <label>Última troca<input id="lastDate" type="date" required></label>
+        <label>Intervalo (meses)<input id="intervalMonths" type="number" min="0" max="120" step="1" inputmode="numeric"></label>
+      </div>
+      <label>Custo (R$, opcional)<input id="itemCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 89,90"></label>
+      <p class="hint">Preencha ao menos um intervalo: quilômetros ou meses.</p>
+      <p class="error" id="maintenanceError" role="alert"></p>
+      <button class="primary" value="default">Salvar manutenção</button>
+      <button class="danger-button hidden" type="button" id="deleteMaintenanceButton">Excluir manutenção</button>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" id="settingsForm">
+      <div class="dialog-title"><h2>Dados da moto</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <label>Nome da moto<input id="bikeNameInput" maxlength="50" required></label>
+      <label>Ano (opcional)<input id="bikeYearInput" type="number" min="1980" max="2100" inputmode="numeric"></label>
+      <label class="checkbox-label"><input id="unknownHistorySettings" type="checkbox"> Histórico de manutenção ainda desconhecido</label>
+      <label class="checkbox-label"><input id="notificationsInput" type="checkbox"> Ativar lembretes de manutenção</label>
+      <button class="primary" value="default">Salvar dados</button>
+      <button class="secondary" type="button" id="exportButton">Exportar backup (JSON)</button>
+      <button class="secondary" type="button" id="csvButton">Exportar planilha (CSV)</button>
+      <button class="secondary" type="button" id="shareButton">Compartilhar resumo</button>
+      <button class="secondary" type="button" id="printOrderButton">Gerar ordem de serviço</button>
+      <label class="secondary file-label">Importar backup<input id="importInput" type="file" accept="application/json" hidden></label>
+    </form>
+  </dialog>
+
+  <template id="maintenanceTemplate">
+    <article class="maintenance-card">
+      <button class="card-button">
+        <span class="status-icon" aria-hidden="true"></span>
+        <span class="card-content"><strong class="item-title"></strong><span class="item-detail"></span><span class="wear-copy"></span><span class="progress-track"><span class="progress-fill"></span></span></span>
+        <span class="status-copy"></span>
+      </button>
+    </article>
+  </template>
+
+  <dialog id="inspectionDialog">
+    <form method="dialog" id="inspectionForm">
+      <div class="dialog-title"><h2>Inspeção geral</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <p class="hint">Marque o que foi verificado nesta inspeção. Base: Mottu Sport ESD (TWI, folga da corrente 20–30 mm, nível de óleo).</p>
+      <fieldset>
+        <legend>Corrente</legend>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="corrente_folga"> Folga entre 20 e 30 mm</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="corrente_lub"> Limpa e lubrificada</label>
+      </fieldset>
+      <fieldset>
+        <legend>Pneu dianteiro</legend>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_d_pressao"> Pressão conferida a frio</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_d_twi"> Sulco TWI visível e regular</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_d_geral"> Sem cortes, bolhas ou lona</label>
+      </fieldset>
+      <fieldset>
+        <legend>Pneu traseiro</legend>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_t_pressao"> Pressão conferida a frio</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_t_twi"> Sulco TWI visível e regular</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="pneu_t_geral"> Sem cortes, bolhas ou lona</label>
+      </fieldset>
+      <fieldset>
+        <legend>Freios</legend>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="freio_d"> Dianteiro: pastilhas, disco e manete</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="freio_t"> Traseiro: pastilha, pedal e luz de freio</label>
+      </fieldset>
+      <fieldset>
+        <legend>Óleo e luzes</legend>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="oleo_nivel"> Nível do óleo na janela</label>
+        <label class="checkbox-label"><input type="checkbox" name="chk" value="luzes"> Farol, lanterna e setas funcionando</label>
+      </fieldset>
+      <p class="error" id="inspectionError" role="alert"></p>
+      <button class="primary" value="default">Salvar inspeção</button>
+      <button class="secondary" type="button" id="clearInspectionButton">Limpar registro</button>
+    </form>
+  </dialog>
+
+  <dialog id="bikesDialog">
+    <div class="dialog-title"><h2>Garagem</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+    <div id="bikesList" class="bikes-list"></div>
+    <button class="primary" id="newBikeButton" type="button">+ Nova moto</button>
+  </dialog>
+
+  <dialog id="newBikeDialog">
+    <form method="dialog" id="newBikeForm">
+      <div class="dialog-title"><h2>Nova moto</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <label>Nome<input id="newBikeName" maxlength="50" placeholder="Ex.: Honda CG 160" required></label>
+      <div class="two-columns">
+        <label>Ano (opcional)<input id="newBikeYear" type="number" min="1980" max="2100" inputmode="numeric"></label>
+        <label>Quilometragem atual<input id="newBikeKm" type="number" min="0" step="1" inputmode="numeric" required></label>
+      </div>
+      <p class="hint">A nova moto começa sem histórico: use "Registrar revisão de entrega" após criá-la.</p>
+      <p class="error" id="newBikeError" role="alert"></p>
+      <button class="primary" value="default">Criar moto</button>
+    </form>
+  </dialog>
+
+  <div class="service-order" id="serviceOrder" aria-hidden="true"></div>
+
+  <script src="bike3d.js?v=11" defer></script>
+  <script src="app.js?v=11" defer></script>
+</body>
+</html>

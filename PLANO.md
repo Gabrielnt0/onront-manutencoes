@@ -1,0 +1,156 @@
+# Plano de Melhorias — ONRONT Manutenções
+
+Roadmap das 10 melhorias aprovadas para o painel de manutenção.
+Estado: **planejamento → implementação concluída** (atualizado em 26/11/2026).
+
+## Visão geral
+
+| # | Melhoria | Prioridade | Status |
+|---|----------|-----------|--------|
+| 1 | Histórico de manutenções executadas | 🔴 Alta | ✅ Implementado |
+| 2 | Custo por manutenção | 🔴 Alta | ✅ Implementado |
+| 3 | Lembretes (notificações do navegador) | 🔴 Alta | ✅ Implementado |
+| 4 | Gráfico de uso do hodômetro | 🟡 Média | ✅ Implementado |
+| 5 | Checklist de inspeção condicional | 🟡 Média | ✅ Implementado |
+| 6 | Cores no modelo 3D por status | 🟡 Média | ✅ Implementado |
+| 7 | Multi-moto | 🟢 Extra | ✅ Implementado |
+| 8 | Resumo compartilhável | 🟢 Extra | ✅ Implementado |
+| 9 | Export de CSV | 🟢 Extra | ✅ Implementado |
+| 10 | Ordem de serviço (impressão/PDF) | 🟢 Extra | ✅ Implementado |
+
+### Testes executados (26/11/2026)
+
+- ✅ Migração: dados existentes (195.598 km, 9 itens) preservados, zero erros de console
+- ✅ Checklist de inspeção: salvar 12/12 itens, exibição no card
+- ✅ Livro de serviço: registro com custo (R$ 95,00) e contagem no painel
+- ✅ Garagem: criar moto nova, trocar de volta, estado isolado por moto, excluir com confirmação
+- ✅ CSV: download `onront-manutencao-2026-11-26.csv`
+- ✅ Compartilhar: resumo copiado para a área de transferência
+- ✅ Ordem de serviço: HTML gerado com tabela de itens e serviços recentes
+- ✅ Dados de teste removidos após a bateria de testes
+- ⚠️ Lembretes: testados apenas em código (Notification API requer permissão explícita do usuário)
+
+### Limitação conhecida
+
+- Lembretes notificam apenas com o app aberto (sem servidor push, o PWA não acorda em segundo plano)
+- `window.print()` é recusado pela automação do Orca (`blockedPrint`), mas funciona normalmente no navegador do usuário
+
+---
+
+## 1. Histórico de manutenções executadas
+
+**Problema:** editar um item sobrescreve `lastKm`/`lastDate`; o passado se perde.
+
+- Novo array `state.serviceLog[]`: `{id, name, date, km, cost, notes}`
+- Ao salvar edição de manutenção com km/data alterados → registrar entrada no log
+- Nova seção "Histórico de serviço" abaixo da lista de manutenções
+- Migração em `loadState()`: `serviceLog` default `[]`
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+## 2. Custo por manutenção
+
+**Problema:** não há como saber quanto a moto custa para manter.
+
+- Campo opcional "Custo (R$)" no diálogo de manutenção
+- Custo gravado no `serviceLog`
+- Célula "Custo acumulado" no `smart-grid`
+- Custo por item visível no histórico
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+## 3. Lembretes (notificações)
+
+**Problema:** só há aviso se o usuário abrir o app.
+
+- Checkbox "Ativar lembretes" nas configurações → `Notification.requestPermission()`
+- `state.notificationsOn`
+- Verificação periódica (`setInterval`): notifica itens `warning`/`overdue` (1× por sessão por item)
+- Limite: sem servidor push, notifica apenas com o app aberto (PWA em segundo plano pode não acionar)
+
+**Arquivos:** `app.js`, `index.html`
+
+## 4. Gráfico de uso do hodômetro
+
+**Problema:** `odometerHistory` (até 60 leituras) é coletado mas nunca exibido.
+
+- SVG nativo (sem lib): polyline das leituras km × data
+- Exibido no `smart-card` sob "Ritmo de uso"
+- Mostra também km/dia calculados
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+## 5. Checklist de inspeção condicional
+
+**Problema:** freios/pneus/corrente são "condicionais" no README, sem como registrar a verificação.
+
+- `state.inspection = {date, km, checks:{}}`
+- Itens baseados no manual Mottu: corrente (folga 20–30 mm, lubrificação), pneus (TWI, pressão, cortes), freios (pastilhas, disco, manete), luzes
+- Botão "Inspeção geral" abre diálogo com checkboxes
+- Card no topo da lista mostra última inspeção
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+## 6. Cores no modelo 3D por status
+
+**Problema:** todos os pontos do modelo são verdes, sem relação com o status real.
+
+- `bike3d.js`: `setMarkerStatus(name, color)` + mapa de cores
+- `app.js`: a cada `render()`, mapear `partMaintenance` → `maintenanceStatus()` → cor
+- Verde = em dia, âmbar = atenção, vermelho = vencido
+
+**Arquivos:** `bike3d.js`, `app.js`
+
+## 7. Multi-moto
+
+**Problema:** o app só rastreia uma moto.
+
+- Estratégia de "troca por snapshot": `state.roster[]` guarda o estado completo das outras motos
+- A moto ativa permanece em `state.bike`/`state.maintenance` (código intacto)
+- Diálogo "Trocar moto": lista, adicionar nova, remover (não a ativa)
+- `bike.id` (uid) para referência estável
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+## 8. Resumo compartilhável
+
+- Botão gera texto formatado (moto, km, saúde, contagens, próximos itens)
+- `navigator.share()` quando disponível, senão copiar para área de transferência
+
+**Arquivos:** `app.js`, `index.html`
+
+## 9. Export de CSV
+
+- "Exportar CSV" ao lado do backup JSON
+- Colunas: `Tipo;Data;Km;Item;IntervaloKm;Status;Custo`
+- `Tipo=plano` (itens atuais) e `Tipo=serviço` (histórico)
+
+**Arquivos:** `app.js`, `index.html`
+
+## 10. Ordem de serviço (impressão/PDF)
+
+- Botão "Ordem de serviço" gera visão imprimível: cabeçalho, dados da moto, tabela de itens por status, histórico recente, espaço para assinatura
+- Div oculta `.service-order` + `@media print` esconde o app
+- Salvar como PDF pelo diálogo do navegador
+
+**Arquivos:** `app.js`, `index.html`, `styles.css`
+
+---
+
+## Ordem de implementação
+
+1. Migração de dados (`loadState` v2: `serviceLog`, `inspection`, `notificationsOn`, `roster`, `bike.id`)
+2. #1 + #2 (histórico e custos — mesma UI)
+3. #5 (checklist de inspeção)
+4. #4 (gráfico SVG)
+5. #3 (lembretes)
+6. #6 (cores no 3D)
+7. #8 + #9 + #10 (ações: share, CSV, impressão)
+8. #7 (multi-moto — por último, maior refactor)
+9. Teste de regressão no navegador (dados existentes de 195.598 km preservados)
+
+## Regras
+
+- Dados atuais do `localStorage` (`moto-em-dia-v1`) devem ser migrados sem perda
+- Sem dependências externas (PWA offline, tudo vanilla JS)
+- Estética atual mantida (dark, `--brand`, cantos 14–22px)
