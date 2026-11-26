@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=13">
   <title>ONRONT Manutenções</title>
 </head>
 <body>
@@ -51,6 +51,8 @@
         <div><span>Próximo marco</span><strong id="nextMilestone">5.000 km</strong></div>
         <div><span>Custo acumulado</span><strong id="totalCost">—</strong></div>
         <div><span>Serviços registrados</span><strong id="serviceCount">0</strong></div>
+        <div><span id="costPerKmLabel">Custo por km</span><strong id="costPerKm">—</strong></div>
+        <div><span>Consumo médio</span><strong id="avgConsumption">—</strong></div>
       </div>
       <div id="usageChart" class="usage-chart" role="img" aria-label="Gráfico de uso do hodômetro"></div>
       <p id="smartInsight" class="smart-insight"></p>
@@ -106,6 +108,19 @@
     </section>
     <div id="serviceLogList" class="service-log"></div>
 
+    <section class="section-heading">
+      <div><p class="eyebrow">COMBUSTÍVEL</p><h2>Abastecimentos</h2></div>
+      <button class="text-button" id="addFuelButton" type="button">+ Registrar</button>
+    </section>
+    <div id="fuelStats" class="fuel-stats"></div>
+    <div id="fuelList" class="fuel-list"></div>
+
+    <section class="section-heading">
+      <div><p class="eyebrow">COMPROVANTES</p><h2>Anexos</h2></div>
+      <button class="text-button" id="addAttachmentButton" type="button">+ Anexar</button>
+    </section>
+    <div id="attachmentList" class="attachment-list"></div>
+
     <p class="disclaimer">Plano baseado no cronograma oficial da Mottu Sport ESD, revisão 2026. Desgaste, uso severo e poeira podem exigir antecipação. <a href="https://mottu.com.br/documents/manual-mottu-sport-esd.pdf" target="_blank" rel="noopener">Consultar manual da Mottu</a>.</p>
   </main>
 
@@ -113,6 +128,9 @@
     <form method="dialog" id="kmForm">
       <div class="dialog-title"><h2>Atualizar quilometragem</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
       <label>Quilometragem atual<input id="kmInput" type="number" min="0" step="1" inputmode="numeric" required></label>
+      <button class="secondary" type="button" id="scanOdometerButton">Ler km por foto (OCR)</button>
+      <input id="odometerPhoto" type="file" accept="image/*" capture="environment" hidden>
+      <p class="hint" id="ocrHint">Disponível quando o navegador oferece leitura de texto nativa.</p>
       <label class="checkbox-label"><input id="unknownHistoryInput" type="checkbox"> Moto seminova ou sem histórico de manutenção</label>
       <p class="error" id="kmError" role="alert"></p>
       <button class="primary" value="default">Salvar quilometragem</button>
@@ -147,9 +165,21 @@
       <label>Ano (opcional)<input id="bikeYearInput" type="number" min="1980" max="2100" inputmode="numeric"></label>
       <label class="checkbox-label"><input id="unknownHistorySettings" type="checkbox"> Histórico de manutenção ainda desconhecido</label>
       <label class="checkbox-label"><input id="notificationsInput" type="checkbox"> Ativar lembretes de manutenção</label>
+      <label class="checkbox-label"><input id="pushInput" type="checkbox"> Ativar push remoto (Web Push)</label>
+      <div class="two-columns">
+        <label>Tema<select id="themeSelect"><option value="dark">Escuro</option><option value="light">Claro</option></select></label>
+        <label>Idioma<select id="langSelect"><option value="pt">Português</option><option value="en">English</option><option value="es">Español</option></select></label>
+      </div>
+      <label>Chave pública VAPID (opcional)<input id="vapidInput" placeholder="BP..." maxlength="200"></label>
+      <p class="hint" id="pushStatus"></p>
+      <p class="hint">Push remoto exige uma chave VAPID e um servidor que dispare as mensagens. Sem servidor, os lembretes funcionam apenas com o app aberto.</p>
       <button class="primary" value="default">Salvar dados</button>
       <button class="secondary" type="button" id="exportButton">Exportar backup (JSON)</button>
       <button class="secondary" type="button" id="csvButton">Exportar planilha (CSV)</button>
+      <button class="secondary" type="button" id="calendarButton">Exportar calendário (.ics)</button>
+      <button class="secondary" type="button" id="syncExportButton">Gerar link de sincronização</button>
+      <button class="secondary" type="button" id="syncImportButton">Aplicar link de sincronização</button>
+      <button class="secondary" type="button" id="signatureButton">Assinar ordem de serviço</button>
       <button class="secondary" type="button" id="shareButton">Compartilhar resumo</button>
       <button class="secondary" type="button" id="printOrderButton">Gerar ordem de serviço</button>
       <label class="secondary file-label">Importar backup<input id="importInput" type="file" accept="application/json" hidden></label>
@@ -223,9 +253,55 @@
     </form>
   </dialog>
 
+  <dialog id="fuelDialog">
+    <form method="dialog" id="fuelForm">
+      <div class="dialog-title"><h2>Registrar abastecimento</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <input id="fuelId" type="hidden">
+      <div class="two-columns">
+        <label>Data<input id="fuelDate" type="date" required></label>
+        <label>Quilometragem<input id="fuelKm" type="number" min="0" step="1" inputmode="numeric" required></label>
+      </div>
+      <div class="two-columns">
+        <label>Litros<input id="fuelLiters" type="number" min="0.1" step="0.01" inputmode="decimal" required></label>
+        <label>Valor total (R$)<input id="fuelPrice" type="number" min="0" step="0.01" inputmode="decimal" required></label>
+      </div>
+      <label>Posto (opcional)<input id="fuelStation" maxlength="50" placeholder="Ex.: Posto Ipiranga"></label>
+      <p class="error" id="fuelError" role="alert"></p>
+      <button class="primary" value="default">Salvar abastecimento</button>
+      <button class="danger-button hidden" type="button" id="deleteFuelButton">Excluir registro</button>
+    </form>
+  </dialog>
+
+  <dialog id="attachmentDialog">
+    <form method="dialog" id="attachmentForm">
+      <div class="dialog-title"><h2>Anexar comprovante</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <label>Serviço relacionado (opcional)<select id="attachmentService"></select></label>
+      <label>Arquivo (imagem ou PDF, até 8 MB)<input id="attachmentFile" type="file" accept="image/*,application/pdf" required></label>
+      <label>Descrição<input id="attachmentNote" maxlength="80" placeholder="Ex.: Nota fiscal do óleo"></label>
+      <p class="error" id="attachmentError" role="alert"></p>
+      <button class="primary" value="default">Salvar anexo</button>
+    </form>
+  </dialog>
+
+  <dialog id="syncDialog">
+    <div class="dialog-title"><h2>Sincronização por link</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+    <p class="hint">O link contém uma cópia comprimida dos dados. Copie e abra em outro dispositivo para transferir. Nada é enviado para a nuvem.</p>
+    <textarea id="syncText" rows="5" spellcheck="false" placeholder="Cole aqui o link de sincronização"></textarea>
+    <button class="primary" id="syncApplyButton" type="button">Aplicar dados do link</button>
+    <button class="secondary" id="syncCopyButton" type="button">Copiar link gerado</button>
+  </dialog>
+
+  <dialog id="signatureDialog">
+    <div class="dialog-title"><h2>Assinatura do responsável</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+    <canvas id="signatureCanvas" width="600" height="180" aria-label="Área para assinar"></canvas>
+    <p class="hint">Assine com o dedo ou mouse. A assinatura entra na ordem de serviço.</p>
+    <button class="secondary" id="clearSignatureButton" type="button">Limpar</button>
+    <button class="primary" id="saveSignatureButton" type="button">Salvar assinatura</button>
+  </dialog>
+
   <div class="service-order" id="serviceOrder" aria-hidden="true"></div>
 
-  <script src="bike3d.js?v=11" defer></script>
-  <script src="app.js?v=11" defer></script>
+  <script src="bike3d.js?v=13" defer></script>
+  <script src="app.js?v=13" defer></script>
 </body>
 </html>

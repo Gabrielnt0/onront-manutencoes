@@ -154,3 +154,53 @@ Estado: **planejamento → implementação concluída** (atualizado em 26/11/202
 - Dados atuais do `localStorage` (`moto-em-dia-v1`) devem ser migrados sem perda
 - Sem dependências externas (PWA offline, tudo vanilla JS)
 - Estética atual mantida (dark, `--brand`, cantos 14–22px)
+
+---
+
+# Fase 2 — roadmap estendido
+
+Estado: **modo meta/planejamento → implementação** (26/11/2026).
+
+| # | Melhoria | Esforço | Status |
+|---|----------|---------|--------|
+| 11 | Exportar vencimentos para calendário `.ics` | Rápido | ⬜ Planejado |
+| 12 | Badge no ícone + atalhos na PWA | Rápido | ⬜ Planejado |
+| 13 | Custo por km rodado | Rápido | ⬜ Planejado |
+| 14 | Tema claro/escuro | Rápido | ⬜ Planejado |
+| 15 | Testes automatizados (smoke) | Rápido | ⬜ Planejado |
+| 16 | Abastecimentos (km/L, custo por km, autonomia) | Médio | ⬜ Planejado |
+| 17 | Fotos e notas fiscais (IndexedDB + compressão) | Médio | ⬜ Planejado |
+| 18 | Sincronização entre dispositivos (link/QR, sem servidor) | Médio | ⬜ Planejado |
+| 19 | Push real (Web Push + VAPID) | Médio | ⬜ Planejado |
+| 20 | OCR do hodômetro (Shape Detection API) | Grande | ⬜ Planejado |
+| 21 | Modo oficina (assinatura + código de validação) | Grande | ⬜ Planejado |
+| 22 | Internacionalização (pt-BR / en / es) | Grande | ⬜ Planejado |
+
+## Decisões técnicas
+
+- **11** — gerar `BEGIN:VCALENDAR` com `VEVENT` por item vencido/em atenção; `DTSTART;VALUE=DATE`, sem lib.
+- **12** — `manifest.shortcuts` (Atualizar km, Checklist) + `navigator.setAppBadge(count)` quando suportado.
+- **13** — `(total gasto em serviços + combustível) / km rodados desde a entrega`; exibido no `smart-grid`.
+- **14** — `data-theme` no `<html>`, variáveis CSS já centralizadas; persistir em `state.ui.theme` e respeitar `prefers-color-scheme`.
+- **15** — `node --test` com asserts estáticos sobre os contratos (IDs, chaves de estado, versão do cache); sem dependências.
+- **16** — `state.fuelLog[]` com `{id,date,km,liters,price,station}`; seção "Abastecimentos" com média e gráfico de barras.
+- **17** — IndexedDB `onront-files`; redimensionar para 1280 px e JPEG 0.72 antes de gravar; vincular por `serviceLog.id`.
+- **18** — `CompressionStream('gzip')` + base64url no `#hash` da URL; gerar QR com SVG próprio. Sem nuvem: o link contém os dados.
+- **19** — `PushManager.subscribe()` com chave VAPID configurável; **sem servidor não há disparo remoto** — o app registra o endpoint e mostra onde configurá-lo.
+- **20** — `TextDetector` nativo (Chrome/Android) lendo a foto do painel; fallback manual. Sem modelo pesado, mantém PWA offline.
+- **21** — assinatura em `<canvas>` embutida na ordem de serviço + código curto SHA-256 dos dados impressos. Validação pública exige backend (fora do escopo estático).
+- **22** — dicionário `I18N` com 3 idiomas + `applyLang()` varrendo `[data-i18n]`; `state.ui.lang`.
+
+## Ordem de implementação
+
+1. 13 + 14 + 12 + 11 (rápidos, tocam o mesmo CSS/HTML)
+2. 16 (abastecimentos) e 17 (anexos)
+3. 18 (sync por link) e 19 (push VAPID)
+4. 20 (OCR), 21 (oficina), 22 (i18n)
+5. 15 (testes) + bump do service worker + deploy
+
+## Regras adicionais
+
+- Nenhuma dependência externa em runtime (OCR e push usam APIs nativas com fallback).
+- Migração `loadState()` deve aceitar backups antigos sem perda.
+- Dados de teste criados durante a validação devem ser removidos ao final.

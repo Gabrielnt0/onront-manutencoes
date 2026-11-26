@@ -11,6 +11,10 @@ const defaultState = () => ({
   inspection: null,
   notificationsOn: false,
   roster: [],
+  fuelLog: [],
+  ui: { theme: 'dark', lang: 'pt' },
+  push: { enabled: false, vapid: '', endpoint: '' },
+  signature: null,
   maintenance: [
     ['Óleo do motor', 5000, 3, '🛢️', 1000, 1], ['Revisão periódica', 5000, 3, '🔍', 1000, 1],
     ['Inspeção dos freios', 5000, 3, '🛑', 1000, 1], ['Inspeção dos pneus', 5000, 3, '◉', 1000, 1],
@@ -62,6 +66,134 @@ const markerStatusColors = { ok: '#54d691', warning: '#ffc857', overdue: '#ff696
 let bikeModel = null;
 const notifiedThisSession = new Set();
 
+const I18N = {
+  en: {
+    'ONRONT MANUTENÇÕES': 'ONRONT MAINTENANCE', 'Garagem: trocar de moto': 'Garage: switch bike',
+    'Editar dados da moto': 'Edit bike details', 'Quilometragem atual': 'Current mileage',
+    'Atualizar km': 'Update km', 'Em dia': 'On track', 'Atenção': 'Attention', 'Vencidas': 'Overdue',
+    'ASSISTENTE PREVENTIVO': 'PREVENTIVE ASSISTANT', 'Previsão inteligente': 'Smart forecast',
+    'Ritmo de uso': 'Usage rate', 'Aprendendo': 'Learning', 'Próximo marco': 'Next milestone',
+    'Custo acumulado': 'Total cost', 'Serviços registrados': 'Services logged', 'Custo por km': 'Cost per km',
+    'Consumo médio': 'Average consumption', 'Gráfico de uso do hodômetro': 'Odometer usage chart',
+    'GUIA VISUAL': 'VISUAL GUIDE', 'Explore sua moto': 'Explore your bike', 'Modelo 3D interativo': 'Interactive 3D model',
+    'Esquerda': 'Left', 'Frente': 'Front', 'Direita': 'Right', 'Traseira': 'Rear',
+    'Arraste para girar • pinça ou roda para zoom': 'Drag to rotate • pinch or scroll to zoom',
+    'Toque em um ponto': 'Tap a marker', 'Veja onde ficam os principais itens de manutenção.': 'See where the main maintenance items are.',
+    'Representação visual aproximada.': 'Approximate visual representation.', 'Uso estimado': 'Estimated wear',
+    'PRÓXIMOS CUIDADOS': 'UPCOMING', 'Manutenções': 'Maintenance', '+ Adicionar': '+ Add',
+    'Nenhuma inspeção registrada': 'No inspection recorded', 'Verifique freios, pneus, corrente e luzes': 'Check brakes, tires, chain and lights',
+    'Checklist': 'Checklist', 'Última inspeção:': 'Last inspection:', 'itens verificados': 'items checked',
+    'LIVRO DE SERVIÇO': 'SERVICE BOOK', 'Histórico': 'History', 'registro': 'record', 'registros': 'records',
+    'Nenhum serviço registrado. Ao editar uma manutenção, o registro entra aqui.': 'No services yet. Edit a maintenance item to create a record.',
+    'COMBUSTÍVEL': 'FUEL', 'Abastecimentos': 'Fuel-ups', '+ Registrar': '+ Log',
+    'Nenhum abastecimento registrado.': 'No fuel-ups recorded.',
+    'COMPROVANTES': 'RECEIPTS', 'Anexos': 'Attachments', '+ Anexar': '+ Attach',
+    'Nenhum anexo. Use + Anexar para guardar fotos ou notas fiscais.': 'No attachments. Use + Attach to save photos or receipts.',
+    'Próxima:': 'Next:', 'Uso do ciclo:': 'Cycle use:', 'Nenhuma manutenção cadastrada.': 'No maintenance items yet.',
+    'Gráfico de uso disponível após 2 leituras de hodômetro em dias diferentes.': 'Chart available after 2 odometer readings on different days.',
+    'leituras': 'readings', 'km/dia': 'km/day', 'Ritmo em aprendizado': 'Learning pace',
+    'km restantes': 'km remaining', 'Faltam': 'Only', 'km atrasado': 'km overdue', 'dias atrasado': 'days overdue',
+    'Dados da moto': 'Bike details', 'Nome da moto': 'Bike name', 'Ano (opcional)': 'Year (optional)',
+    'Histórico de manutenção ainda desconhecido': 'Maintenance history still unknown',
+    'Ativar lembretes de manutenção': 'Enable maintenance reminders', 'Ativar push remoto (Web Push)': 'Enable remote push (Web Push)',
+    'Tema': 'Theme', 'Escuro': 'Dark', 'Claro': 'Light', 'Idioma': 'Language', 'Português': 'Portuguese',
+    'Chave pública VAPID (opcional)': 'VAPID public key (optional)',
+    'Salvar dados': 'Save details', 'Exportar backup (JSON)': 'Export backup (JSON)', 'Exportar planilha (CSV)': 'Export spreadsheet (CSV)',
+    'Exportar calendário (.ics)': 'Export calendar (.ics)', 'Gerar link de sincronização': 'Generate sync link',
+    'Aplicar link de sincronização': 'Apply sync link', 'Assinar ordem de serviço': 'Sign work order',
+    'Compartilhar resumo': 'Share summary', 'Gerar ordem de serviço': 'Generate work order', 'Importar backup': 'Import backup',
+    'Nova manutenção': 'New maintenance', 'Editar manutenção': 'Edit maintenance', 'Item': 'Item',
+    'Última troca (km)': 'Last change (km)', 'Intervalo (km)': 'Interval (km)', 'Última troca': 'Last change',
+    'Intervalo (meses)': 'Interval (months)', 'Custo (R$, opcional)': 'Cost (R$, optional)',
+    'Salvar manutenção': 'Save maintenance', 'Excluir manutenção': 'Delete maintenance',
+    'Atualizar quilometragem': 'Update mileage', 'Salvar quilometragem': 'Save mileage',
+    'Inspeção geral': 'General inspection', 'Salvar inspeção': 'Save inspection', 'Limpar registro': 'Clear record',
+    'Garagem': 'Garage', '+ Nova moto': '+ New bike', 'Nova moto': 'New bike', 'Criar moto': 'Create bike',
+    'Registrar abastecimento': 'Log fuel-up', 'Data': 'Date', 'Quilometragem': 'Mileage', 'Litros': 'Liters',
+    'Valor total (R$)': 'Total amount (R$)', 'Posto (opcional)': 'Station (optional)',
+    'Salvar abastecimento': 'Save fuel-up', 'Excluir registro': 'Delete record',
+    'Anexar comprovante': 'Attach receipt', 'Serviço relacionado (opcional)': 'Related service (optional)',
+    'Descrição': 'Description', 'Salvar anexo': 'Save attachment',
+    'Sincronização por link': 'Sync by link', 'Aplicar dados do link': 'Apply link data', 'Copiar link gerado': 'Copy generated link',
+    'Assinatura do responsável': 'Signature of responsible person', 'Assinar': 'Sign', 'Limpar': 'Clear',
+    'Salvar assinatura': 'Save signature'
+  },
+  es: {
+    'ONRONT MANUTENÇÕES': 'ONRONT MANTENIMIENTOS', 'Garagem: trocar de moto': 'Garaje: cambiar de moto',
+    'Editar dados da moto': 'Editar datos de la moto', 'Quilometragem atual': 'Kilometraje actual',
+    'Atualizar km': 'Actualizar km', 'Em dia': 'Al día', 'Atenção': 'Atención', 'Vencidas': 'Vencidas',
+    'ASSISTENTE PREVENTIVO': 'ASISTENTE PREVENTIVO', 'Previsão inteligente': 'Previsión inteligente',
+    'Ritmo de uso': 'Ritmo de uso', 'Aprendendo': 'Aprendiendo', 'Próximo marco': 'Próximo hito',
+    'Custo acumulado': 'Coste acumulado', 'Serviços registrados': 'Servicios registrados', 'Custo por km': 'Coste por km',
+    'Consumo médio': 'Consumo medio', 'Gráfico de uso do hodômetro': 'Gráfico de uso del odómetro',
+    'GUIA VISUAL': 'GUÍA VISUAL', 'Explore sua moto': 'Explora tu moto', 'Modelo 3D interativo': 'Modelo 3D interactivo',
+    'Esquerda': 'Izquierda', 'Frente': 'Delante', 'Direita': 'Derecha', 'Traseira': 'Atrás',
+    'Arraste para girar • pinça ou roda para zoom': 'Arrastra para girar • pellizca o rueda para zoom',
+    'Toque em um ponto': 'Toca un punto', 'Veja onde ficam os principais itens de manutenção.': 'Mira dónde están los principales mantenimientos.',
+    'Representação visual aproximada.': 'Representación visual aproximada.', 'Uso estimado': 'Uso estimado',
+    'PRÓXIMOS CUIDADOS': 'PRÓXIMOS CUIDADOS', 'Manutenções': 'Mantenimientos', '+ Adicionar': '+ Añadir',
+    'Nenhuma inspeção registrada': 'Sin inspección registrada', 'Verifique freios, pneus, corrente e luzes': 'Revisa frenos, neumáticos, cadena y luces',
+    'Checklist': 'Lista de control', 'Última inspeção:': 'Última inspección:', 'itens verificados': 'elementos verificados',
+    'LIVRO DE SERVIÇO': 'LIBRO DE SERVICIO', 'Histórico': 'Historial', 'registro': 'registro', 'registros': 'registros',
+    'Nenhum serviço registrado. Ao editar uma manutenção, o registro entra aqui.': 'Sin servicios. Edita un mantenimiento para crear un registro.',
+    'COMBUSTÍVEL': 'COMBUSTIBLE', 'Abastecimentos': 'Repostajes', '+ Registrar': '+ Registrar',
+    'Nenhum abastecimento registrado.': 'Sin repostajes registrados.',
+    'COMPROVANTES': 'COMPROBANTES', 'Anexos': 'Adjuntos', '+ Anexar': '+ Adjuntar',
+    'Nenhum anexo. Use + Anexar para guardar fotos ou notas fiscais.': 'Sin adjuntos. Usa + Adjuntar para guardar fotos o facturas.',
+    'Próxima:': 'Próxima:', 'Uso do ciclo:': 'Uso del ciclo:', 'Nenhuma manutenção cadastrada.': 'Sin mantenimientos registrados.',
+    'Gráfico de uso disponível após 2 leituras de hodômetro em dias diferentes.': 'Gráfico disponible tras 2 lecturas del odómetro en días distintos.',
+    'leituras': 'lecturas', 'km/dia': 'km/día', 'Ritmo em aprendizado': 'Ritmo en aprendizaje',
+    'km restantes': 'km restantes', 'Faltam': 'Quedan', 'km atrasado': 'km atrasado', 'dias atrasado': 'días atrasado',
+    'Dados da moto': 'Datos de la moto', 'Nome da moto': 'Nombre de la moto', 'Ano (opcional)': 'Año (opcional)',
+    'Histórico de manutenção ainda desconhecido': 'Historial de mantenimiento aún desconocido',
+    'Ativar lembretes de manutenção': 'Activar recordatorios de mantenimiento', 'Ativar push remoto (Web Push)': 'Activar push remoto (Web Push)',
+    'Tema': 'Tema', 'Escuro': 'Oscuro', 'Claro': 'Claro', 'Idioma': 'Idioma', 'Português': 'Portugués',
+    'Chave pública VAPID (opcional)': 'Clave pública VAPID (opcional)',
+    'Salvar dados': 'Guardar datos', 'Exportar backup (JSON)': 'Exportar copia (JSON)', 'Exportar planilha (CSV)': 'Exportar hoja (CSV)',
+    'Exportar calendário (.ics)': 'Exportar calendario (.ics)', 'Gerar link de sincronización': 'Generar enlace de sincronización',
+    'Gerar link de sincronização': 'Generar enlace de sincronización', 'Aplicar link de sincronização': 'Aplicar enlace de sincronización',
+    'Assinar ordem de serviço': 'Firmar orden de trabajo', 'Compartilhar resumo': 'Compartir resumen',
+    'Gerar ordem de serviço': 'Generar orden de trabajo', 'Importar backup': 'Importar copia',
+    'Nova manutenção': 'Nuevo mantenimiento', 'Editar manutenção': 'Editar mantenimiento', 'Item': 'Artículo',
+    'Última troca (km)': 'Último cambio (km)', 'Intervalo (km)': 'Intervalo (km)', 'Última troca': 'Último cambio',
+    'Intervalo (meses)': 'Intervalo (meses)', 'Custo (R$, opcional)': 'Coste (R$, opcional)',
+    'Salvar manutenção': 'Guardar mantenimiento', 'Excluir manutenção': 'Eliminar mantenimiento',
+    'Atualizar quilometragem': 'Actualizar kilometraje', 'Salvar quilometragem': 'Guardar kilometraje',
+    'Inspeção geral': 'Inspección general', 'Salvar inspeção': 'Guardar inspección', 'Limpar registro': 'Borrar registro',
+    'Garagem': 'Garaje', '+ Nova moto': '+ Nueva moto', 'Nova moto': 'Nueva moto', 'Criar moto': 'Crear moto',
+    'Registrar abastecimento': 'Registrar repostaje', 'Data': 'Fecha', 'Quilometragem': 'Kilometraje', 'Litros': 'Litros',
+    'Valor total (R$)': 'Importe total (R$)', 'Posto (opcional)': 'Estación (opcional)',
+    'Salvar abastecimento': 'Guardar repostaje', 'Excluir registro': 'Eliminar registro',
+    'Anexar comprovante': 'Adjuntar comprobante', 'Serviço relacionado (opcional)': 'Servicio relacionado (opcional)',
+    'Descrição': 'Descripción', 'Salvar anexo': 'Guardar adjunto',
+    'Sincronização por link': 'Sincronización por enlace', 'Aplicar dados do link': 'Aplicar datos del enlace',
+    'Copiar link gerado': 'Copiar enlace generado', 'Assinatura do responsável': 'Firma del responsable',
+    'Assinar': 'Firmar', 'Limpar': 'Limpiar', 'Salvar assinatura': 'Guardar firma'
+  }
+};
+const t = text => I18N[state.ui.lang]?.[text] ?? text;
+
+function applyLang() {
+  document.documentElement.lang = state.ui.lang === 'pt' ? 'pt-BR' : state.ui.lang;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const raw = node.nodeValue.trim();
+    if (!raw) continue;
+    if (node.__srcText === undefined) node.__srcText = raw;
+    if (node.__srcText !== node.nodeValue) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t(node.__srcText));
+    else node.nodeValue = t(raw);
+  }
+  document.querySelectorAll('[placeholder],[aria-label],[title]').forEach(element => {
+    ['placeholder', 'aria-label', 'title'].forEach(attr => {
+      const raw = element.getAttribute(attr);
+      if (!raw) return;
+      if (element[`__src_${attr}`] === undefined) element[`__src_${attr}`] = raw;
+      element.setAttribute(attr, t(element[`__src_${attr}`]));
+    });
+  });
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -71,6 +203,10 @@ function loadState() {
     saved.roster = Array.isArray(saved.roster) ? saved.roster : [];
     saved.inspection = saved.inspection && typeof saved.inspection === 'object' ? saved.inspection : null;
     saved.notificationsOn = Boolean(saved.notificationsOn);
+    saved.fuelLog = Array.isArray(saved.fuelLog) ? saved.fuelLog : [];
+    saved.ui = { theme: 'dark', lang: 'pt', ...(saved.ui || {}) };
+    saved.push = { enabled: false, vapid: '', endpoint: '', ...(saved.push || {}) };
+    saved.signature = saved.signature || null;
     if (!saved.bike.id) saved.bike.id = uid();
     if (saved.scheduleVersion !== 'mottu-sport-2026') {
       const upgrades = {
@@ -169,7 +305,7 @@ function maintenanceStatus(item) {
   if ((state.bike.historyUnknown || item.historyUnknown) && Number(item.lastKm) === 0) return { status: 'warning', progress: 90, reason: item.historyUnknown ? 'Confirmar na ordem de serviço' : 'Histórico desconhecido', next: 'confirmar manutenção' };
   const overdue = kmLeft <= 0 || daysLeft <= 0;
   const warning = !overdue && (kmLeft <= Math.max(300, Number(item.intervalKm) * .1) || daysLeft <= 30 || progress >= .9);
-  const reason = kmLeft <= 0 ? `${formatNumber(Math.abs(kmLeft))} km atrasado` : daysLeft <= 0 ? `${Math.abs(daysLeft)} dias atrasado` : warning ? (kmLeft / Math.max(daysLeft, 1) < 15 ? `Faltam ${formatNumber(kmLeft)} km` : `Faltam ${daysLeft} dias`) : Number.isFinite(kmLeft) ? `${formatNumber(kmLeft)} km restantes` : `${daysLeft} dias restantes`;
+  const reason = kmLeft <= 0 ? `${formatNumber(Math.abs(kmLeft))} ${t('km atrasado')}` : daysLeft <= 0 ? `${Math.abs(daysLeft)} ${t('dias atrasado')}` : warning ? (kmLeft / Math.max(daysLeft, 1) < 15 ? `${t('Faltam')} ${formatNumber(kmLeft)} km` : `${t('Faltam')} ${daysLeft} dias`) : Number.isFinite(kmLeft) ? `${formatNumber(kmLeft)} ${t('km restantes')}` : `${daysLeft} dias restantes`;
   const usage = usageForecast();
   const forecastDate = usage.daily > 0 && Number.isFinite(kmLeft) && kmLeft > 0 ? new Date(Date.now() + (kmLeft / usage.daily) * DAY) : null;
   const effectiveDate = forecastDate && (!dateLimit || forecastDate < dateLimit) ? forecastDate : dateLimit;
@@ -190,23 +326,41 @@ function render() {
     card.dataset.status = data.status;
     card.querySelector('.status-icon').textContent = item.icon || '🔧';
     card.querySelector('.item-title').textContent = item.name;
-    card.querySelector('.item-detail').textContent = `Próxima: ${data.next}`;
-    card.querySelector('.wear-copy').textContent = `Uso do ciclo: ${Math.round(data.progress)}% • ${formatNumber(Math.max(0, Number(state.bike.currentKm) - Number(item.lastKm)))} km`;
+    card.querySelector('.item-detail').textContent = `${t('Próxima:')} ${data.next}`;
+    card.querySelector('.wear-copy').textContent = `${t('Uso do ciclo:')} ${Math.round(data.progress)}% • ${formatNumber(Math.max(0, Number(state.bike.currentKm) - Number(item.lastKm)))} km`;
     card.querySelector('.progress-fill').style.width = `${data.progress}%`;
     card.querySelector('.status-copy').textContent = data.reason;
     card.querySelector('button').addEventListener('click', () => openMaintenance(item));
     list.append(card);
   });
-  if (!state.maintenance.length) list.innerHTML = '<div class="empty">Nenhuma manutenção cadastrada.</div>';
+  if (!state.maintenance.length) list.innerHTML = `<div class="empty">${t('Nenhuma manutenção cadastrada.')}</div>`;
   $('#okCount').textContent = counts.ok; $('#warningCount').textContent = counts.warning; $('#overdueCount').textContent = counts.overdue;
   const totalCost = state.serviceLog.reduce((sum, entry) => sum + (Number(entry.cost) || 0), 0);
+  const totalFuel = state.fuelLog.reduce((sum, entry) => sum + (Number(entry.price) || 0), 0);
+  const references = [state.bike.deliveryReviewKm, state.odometerHistory[0]?.km, ...state.maintenance.map(item => item.lastKm)].map(Number).filter(value => value > 0);
+  const startKm = references.length ? Math.min(...references) : 0;
+  const driven = Number(state.bike.currentKm) - startKm;
   $('#totalCost').textContent = totalCost > 0 ? formatMoney(totalCost) : '—';
   $('#serviceCount').textContent = state.serviceLog.length;
+  $('#costPerKm').textContent = totalCost + totalFuel > 0 && driven > 1 ? formatMoney((totalCost + totalFuel) / driven) : '—';
+  const fuelByKm = [...state.fuelLog].sort((a, b) => Number(a.km) - Number(b.km));
+  const liters = fuelByKm.reduce((sum, entry) => sum + (Number(entry.liters) || 0), 0);
+  const spanKm = fuelByKm.length > 1 ? Number(fuelByKm.at(-1).km) - Number(fuelByKm[0].km) : 0;
+  $('#avgConsumption').textContent = spanKm > 0 && liters > 0 ? `${(spanKm / liters).toFixed(1).replace('.', ',')} km/L` : '—';
   renderServiceLog();
+  renderFuel();
+  renderAttachments();
   renderUsageChart();
   renderInspection();
   updateMarkerStatuses(analyzed);
   renderSmartAssistant(analyzed);
+  updateAppBadge(counts.overdue + counts.warning);
+  applyLang();
+}
+
+function updateAppBadge(count) {
+  if (!('setAppBadge' in navigator)) return;
+  try { count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); } catch { /* badge não suportado */ }
 }
 
 const escapeHtml = text => String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -214,8 +368,8 @@ const escapeHtml = text => String(text).replace(/[&<>"']/g, char => ({ '&': '&am
 function renderServiceLog() {
   const container = $('#serviceLogList');
   const log = [...state.serviceLog].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || Number(b.km) - Number(a.km));
-  $('#serviceLogBadge').textContent = `${log.length} ${log.length === 1 ? 'registro' : 'registros'}`;
-  if (!log.length) { container.innerHTML = '<div class="empty">Nenhum serviço registrado. Ao editar uma manutenção, o registro entra aqui.</div>'; return; }
+  $('#serviceLogBadge').textContent = `${log.length} ${t(log.length === 1 ? 'registro' : 'registros')}`;
+  if (!log.length) { container.innerHTML = `<div class="empty">${t('Nenhum serviço registrado. Ao editar uma manutenção, o registro entra aqui.')}</div>`; return; }
   container.innerHTML = log.slice(0, 30).map(entry => `
     <article class="log-entry">
       <strong>${escapeHtml(entry.name)}</strong>
@@ -225,10 +379,77 @@ function renderServiceLog() {
     </article>`).join('');
 }
 
+function renderFuel() {
+  const container = $('#fuelList');
+  const entries = [...state.fuelLog].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const spent = entries.reduce((sum, entry) => sum + (Number(entry.price) || 0), 0);
+  const liters = entries.reduce((sum, entry) => sum + (Number(entry.liters) || 0), 0);
+  $('#fuelStats').innerHTML = `<div><span>Total gasto</span><strong>${spent > 0 ? formatMoney(spent) : '—'}</strong></div><div><span>Litros</span><strong>${liters > 0 ? liters.toFixed(1).replace('.', ',') : '—'}</strong></div><div><span>Preço médio</span><strong>${liters > 0 ? formatMoney(spent / liters) + '/L' : '—'}</strong></div>`;
+  if (!entries.length) { container.innerHTML = `<div class="empty">${t('Nenhum abastecimento registrado.')}</div>`; return; }
+  container.innerHTML = entries.slice(0, 20).map(entry => `
+    <article class="fuel-entry">
+      <div><strong>${formatMoney(Number(entry.price) || 0)}</strong><span>${escapeHtml(entry.date || '')} · ${formatNumber(entry.km)} km${entry.station ? ` · ${escapeHtml(entry.station)}` : ''}</span></div>
+      <div class="fuel-entry-side"><strong>${Number(entry.liters).toFixed(2).replace('.', ',')} L</strong><button type="button" data-fuel-edit="${escapeHtml(entry.id)}" aria-label="Editar">✎</button></div>
+    </article>`).join('');
+  container.querySelectorAll('[data-fuel-edit]').forEach(button => button.addEventListener('click', () => openFuel(state.fuelLog.find(entry => entry.id === button.dataset.fuelEdit))));
+}
+
+const DB_NAME = 'onront-files';
+let attachmentUrls = [];
+function openFilesDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('files', { keyPath: 'id' });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function fileStore(mode, action) {
+  const db = await openFilesDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('files', mode);
+    const request = action(transaction.objectStore('files'));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+const putFile = record => fileStore('readwrite', store => store.put(record));
+const getFiles = () => fileStore('readonly', store => store.getAll());
+const deleteFile = id => fileStore('readwrite', store => store.delete(id));
+
+async function compressImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+}
+
+async function renderAttachments() {
+  attachmentUrls.forEach(url => URL.revokeObjectURL(url));
+  attachmentUrls = [];
+  const container = $('#attachmentList');
+  if (!('indexedDB' in window)) { container.innerHTML = `<div class="empty">IndexedDB indisponível.</div>`; return; }
+  let files = [];
+  try { files = (await getFiles()).filter(record => record.bikeId === state.bike.id); } catch { /* banco indisponível */ }
+  if (!files.length) { container.innerHTML = `<div class="empty">${t('Nenhum anexo. Use + Anexar para guardar fotos ou notas fiscais.')}</div>`; return; }
+  container.innerHTML = files.map(record => {
+    const url = URL.createObjectURL(record.blob); attachmentUrls.push(url);
+    return `<article class="attachment-entry">
+      <a href="${url}" target="_blank" rel="noopener">${record.type.startsWith('image/') ? `<img src="${url}" alt="">` : '<span class="file-icon">📄</span>'}<span><strong>${escapeHtml(record.note || record.name)}</strong><small>${escapeHtml(record.name)}</small></span></a>
+      <button type="button" data-file-delete="${escapeHtml(record.id)}" aria-label="Excluir anexo">✕</button>
+    </article>`;
+  }).join('');
+  container.querySelectorAll('[data-file-delete]').forEach(button => button.addEventListener('click', async () => { if (confirm('Excluir este anexo?')) { await deleteFile(button.dataset.fileDelete); renderAttachments(); } }));
+}
+
 function renderUsageChart() {
   const container = $('#usageChart');
   const history = [...state.odometerHistory].sort((a, b) => a.date.localeCompare(b.date));
-  if (history.length < 2) { container.innerHTML = '<p class="chart-hint">Gráfico de uso disponível após 2 leituras de hodômetro em dias diferentes.</p>'; return; }
+  if (history.length < 2) { container.innerHTML = `<p class="chart-hint">${t('Gráfico de uso disponível após 2 leituras de hodômetro em dias diferentes.')}</p>`; return; }
   const width = 300, height = 74, pad = 8;
   const kms = history.map(reading => Number(reading.km));
   const minKm = Math.min(...kms), maxKm = Math.max(...kms);
@@ -243,7 +464,7 @@ function renderUsageChart() {
     <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
       <polyline points="${points}" fill="none" stroke="#54d691" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>
     </svg>
-    <div class="chart-caption"><span>${history.length} leituras · ${formatNumber(minKm)}–${formatNumber(maxKm)} km</span><span>${usage.daily > 0 ? `${usage.daily.toFixed(1).replace('.', ',')} km/dia` : 'Ritmo em aprendizado'}</span></div>`;
+    <div class="chart-caption"><span>${history.length} ${t('leituras')} · ${formatNumber(minKm)}–${formatNumber(maxKm)} km</span><span>${usage.daily > 0 ? `${usage.daily.toFixed(1).replace('.', ',')} ${t('km/dia')}` : t('Ritmo em aprendizado')}</span></div>`;
 }
 
 function renderInspection() {
@@ -253,12 +474,12 @@ function renderInspection() {
   if (inspection?.date) {
     const count = Object.keys(inspection.checks || {}).length;
     card.classList.add('done'); card.classList.remove('pending');
-    $('#inspectionStatus').textContent = `Última inspeção: ${formatDate(new Date(`${inspection.date}T12:00:00`))}`;
-    $('#inspectionMeta').textContent = `${count}/${total} itens verificados • ${formatNumber(inspection.km)} km`;
+    $('#inspectionStatus').textContent = `${t('Última inspeção:')} ${formatDate(new Date(`${inspection.date}T12:00:00`))}`;
+    $('#inspectionMeta').textContent = `${count}/${total} ${t('itens verificados')} • ${formatNumber(inspection.km)} km`;
   } else {
     card.classList.add('pending'); card.classList.remove('done');
-    $('#inspectionStatus').textContent = 'Nenhuma inspeção registrada';
-    $('#inspectionMeta').textContent = 'Verifique freios, pneus, corrente e luzes';
+    $('#inspectionStatus').textContent = t('Nenhuma inspeção registrada');
+    $('#inspectionMeta').textContent = t('Verifique freios, pneus, corrente e luzes');
   }
 }
 
@@ -305,6 +526,24 @@ $('#kmForm').addEventListener('submit', event => {
   state.odometerHistory = state.odometerHistory.slice(-60);
   saveState();
 });
+$('#scanOdometerButton').addEventListener('click', () => $('#odometerPhoto').click());
+$('#odometerPhoto').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const hint = $('#ocrHint');
+  if (!('TextDetector' in window)) { hint.textContent = 'Leitura automática indisponível neste navegador. Digite os km manualmente.'; return; }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const detected = await new TextDetector().detect(bitmap);
+    const candidates = detected.flatMap(item => String(item.rawValue || '').replace(/\D/g, '')).filter(value => value.length >= 4);
+    bitmap.close?.();
+    if (!candidates.length) { hint.textContent = 'Nenhum número legível. Confirme os km manualmente.'; return; }
+    $('#kmInput').value = candidates.sort((a, b) => b.length - a.length)[0];
+    hint.textContent = 'Valor lido da foto. Confira antes de salvar.';
+  } catch { hint.textContent = 'Não foi possível ler a foto. Digite os km manualmente.'; }
+  event.target.value = '';
+});
+
 $('#addMaintenanceButton').addEventListener('click', () => openMaintenance());
 $('#maintenanceForm').addEventListener('submit', event => {
   if (event.submitter?.value === 'cancel') return;
@@ -318,8 +557,42 @@ $('#maintenanceForm').addEventListener('submit', event => {
   const index = state.maintenance.findIndex(item => item.id === value.id); index >= 0 ? state.maintenance[index] = value : state.maintenance.push(value); saveState();
 });
 $('#deleteMaintenanceButton').addEventListener('click', () => { if (confirm('Excluir esta manutenção?')) { state.maintenance = state.maintenance.filter(item => item.id !== $('#maintenanceId').value); $('#maintenanceDialog').close(); saveState(); } });
-$('#settingsButton').addEventListener('click', () => { $('#bikeNameInput').value = state.bike.name; $('#bikeYearInput').value = state.bike.year; $('#unknownHistorySettings').checked = Boolean(state.bike.historyUnknown); $('#notificationsInput').checked = Boolean(state.notificationsOn); $('#settingsDialog').showModal(); });
-$('#settingsForm').addEventListener('submit', event => { if (event.submitter?.value === 'cancel') return; state.bike.name = $('#bikeNameInput').value.trim(); state.bike.year = $('#bikeYearInput').value; state.bike.historyUnknown = $('#unknownHistorySettings').checked; state.notificationsOn = $('#notificationsInput').checked; saveState(); });
+$('#settingsButton').addEventListener('click', () => {
+  $('#bikeNameInput').value = state.bike.name; $('#bikeYearInput').value = state.bike.year;
+  $('#unknownHistorySettings').checked = Boolean(state.bike.historyUnknown);
+  $('#notificationsInput').checked = Boolean(state.notificationsOn);
+  $('#pushInput').checked = Boolean(state.push.enabled);
+  $('#vapidInput').value = state.push.vapid || '';
+  $('#themeSelect').value = state.ui.theme; $('#langSelect').value = state.ui.lang;
+  $('#pushStatus').textContent = state.push.endpoint ? `Endpoint registrado: ${state.push.endpoint.slice(0, 60)}…` : 'Nenhum endpoint de push registrado.';
+  $('#settingsDialog').showModal();
+});
+$('#settingsForm').addEventListener('submit', async event => {
+  if (event.submitter?.value === 'cancel') return;
+  state.bike.name = $('#bikeNameInput').value.trim(); state.bike.year = $('#bikeYearInput').value;
+  state.bike.historyUnknown = $('#unknownHistorySettings').checked;
+  state.notificationsOn = $('#notificationsInput').checked;
+  state.ui.theme = $('#themeSelect').value; state.ui.lang = $('#langSelect').value;
+  state.push.vapid = $('#vapidInput').value.trim();
+  await setupPush($('#pushInput').checked);
+  applyTheme(); saveState();
+});
+
+function applyTheme() { document.documentElement.dataset.theme = state.ui.theme; }
+function urlBase64ToUint8Array(base64) {
+  const padded = base64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((base64.length + 3) % 4);
+  return Uint8Array.from(atob(padded), char => char.charCodeAt(0));
+}
+async function setupPush(enabled) {
+  state.push.enabled = Boolean(enabled);
+  if (!enabled) { state.push.endpoint = ''; return; }
+  if (!state.push.vapid || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(state.push.vapid) });
+    state.push.endpoint = subscription.endpoint;
+  } catch { state.push.endpoint = ''; }
+}
 $('#notificationsInput').addEventListener('change', event => {
   if (!event.target.checked || !('Notification' in window)) return;
   if (Notification.permission === 'default') Notification.requestPermission();
@@ -337,7 +610,7 @@ $('#confirmDeliveryReviewButton').addEventListener('click', () => {
   saveState();
 });
 $('#exportButton').addEventListener('click', () => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' })); link.download = `moto-em-dia-${today()}.json`; link.click(); URL.revokeObjectURL(link.href); });
-$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; state = data; saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
+$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: 'dark', lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
 document.querySelectorAll('dialog .close').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 
 // --- Inspeção condicional (checklist) ---
@@ -358,8 +631,8 @@ $('#inspectionForm').addEventListener('submit', event => {
 $('#clearInspectionButton').addEventListener('click', () => { state.inspection = null; saveState(); $('#inspectionDialog').close(); });
 
 // --- Garagem (multi-moto por troca de snapshot) ---
-const bikeSnapshot = () => ({ bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion, serviceLog: state.serviceLog, inspection: state.inspection, maintenance: state.maintenance });
-const applyBikeSnapshot = snap => { state.bike = snap.bike; state.odometerHistory = Array.isArray(snap.odometerHistory) ? snap.odometerHistory : []; state.scheduleVersion = snap.scheduleVersion || 'mottu-sport-2026'; state.serviceLog = Array.isArray(snap.serviceLog) ? snap.serviceLog : []; state.inspection = snap.inspection || null; state.maintenance = Array.isArray(snap.maintenance) ? snap.maintenance : defaultState().maintenance; };
+const bikeSnapshot = () => ({ bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion, serviceLog: state.serviceLog, fuelLog: state.fuelLog, inspection: state.inspection, maintenance: state.maintenance });
+const applyBikeSnapshot = snap => { state.bike = snap.bike; state.odometerHistory = Array.isArray(snap.odometerHistory) ? snap.odometerHistory : []; state.scheduleVersion = snap.scheduleVersion || 'mottu-sport-2026'; state.serviceLog = Array.isArray(snap.serviceLog) ? snap.serviceLog : []; state.fuelLog = Array.isArray(snap.fuelLog) ? snap.fuelLog : []; state.inspection = snap.inspection || null; state.maintenance = Array.isArray(snap.maintenance) ? snap.maintenance : defaultState().maintenance; };
 
 function renderGarage() {
   const list = $('#bikesList');
@@ -408,11 +681,134 @@ $('#newBikeForm').addEventListener('submit', event => {
   saveState();
 });
 
+// --- Abastecimentos ---
+function openFuel(entry) {
+  $('#fuelForm').reset(); $('#fuelError').textContent = '';
+  $('#fuelId').value = entry?.id || '';
+  $('#fuelDate').value = entry?.date || today();
+  $('#fuelKm').value = entry?.km ?? state.bike.currentKm;
+  $('#fuelLiters').value = entry?.liters || '';
+  $('#fuelPrice').value = entry?.price || '';
+  $('#fuelStation').value = entry?.station || '';
+  $('#deleteFuelButton').classList.toggle('hidden', !entry);
+  $('#fuelDialog').showModal();
+}
+$('#addFuelButton').addEventListener('click', () => openFuel());
+$('#fuelForm').addEventListener('submit', event => {
+  if (event.submitter?.value === 'cancel') return;
+  const liters = Number($('#fuelLiters').value), price = Number($('#fuelPrice').value), km = Number($('#fuelKm').value);
+  if (!(liters > 0) || !(price >= 0) || !Number.isFinite(km) || km > state.bike.currentKm) { event.preventDefault(); $('#fuelError').textContent = 'Informe litros, valor e km válidos (até a km atual).'; return; }
+  const entry = { id: $('#fuelId').value || uid(), date: $('#fuelDate').value, km, liters, price, station: $('#fuelStation').value.trim() };
+  const index = state.fuelLog.findIndex(item => item.id === entry.id);
+  index >= 0 ? state.fuelLog[index] = entry : state.fuelLog.push(entry);
+  saveState();
+});
+$('#deleteFuelButton').addEventListener('click', () => { if (confirm('Excluir este abastecimento?')) { state.fuelLog = state.fuelLog.filter(item => item.id !== $('#fuelId').value); $('#fuelDialog').close(); saveState(); } });
+
+// --- Anexos (IndexedDB) ---
+$('#addAttachmentButton').addEventListener('click', () => {
+  $('#attachmentForm').reset(); $('#attachmentError').textContent = '';
+  $('#attachmentService').innerHTML = '<option value="">—</option>' + [...state.serviceLog].reverse().map(entry => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)} · ${escapeHtml(entry.date || '')}</option>`).join('');
+  $('#attachmentDialog').showModal();
+});
+$('#attachmentForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const file = $('#attachmentFile').files[0];
+  if (!file) { $('#attachmentError').textContent = 'Escolha um arquivo.'; return; }
+  if (file.size > 8 * 1024 * 1024) { $('#attachmentError').textContent = 'Arquivo acima de 8 MB.'; return; }
+  try {
+    const blob = file.type.startsWith('image/') ? await compressImage(file) : file;
+    await putFile({ id: uid(), bikeId: state.bike.id, name: file.name, type: blob.type || file.type, note: $('#attachmentNote').value.trim(), serviceId: $('#attachmentService').value, createdAt: today(), blob });
+    $('#attachmentDialog').close(); renderAttachments();
+  } catch { $('#attachmentError').textContent = 'Não foi possível salvar o anexo.'; }
+});
+
+// --- Calendário .ics ---
+const icsDate = date => date.toISOString().slice(0, 10).replace(/-/g, '');
+const icsText = text => String(text).replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
+$('#calendarButton').addEventListener('click', () => {
+  const daily = usageForecast().daily;
+  const events = state.maintenance.map(item => {
+    const data = maintenanceStatus(item);
+    if (data.status === 'ok') return null;
+    const kmLimit = Number(item.intervalKm) > 0 ? Number(item.lastKm) + Number(item.intervalKm) : Infinity;
+    const kmLeft = kmLimit - Number(state.bike.currentKm);
+    let date = Number(item.intervalMonths) > 0 ? addMonths(item.lastDate, Number(item.intervalMonths)) : null;
+    if (daily > 0 && Number.isFinite(kmLeft) && kmLeft > 0) { const forecast = new Date(Date.now() + (kmLeft / daily) * DAY); if (!date || forecast < date) date = forecast; }
+    if (!date) date = new Date(Date.now() + 7 * DAY);
+    return ['BEGIN:VEVENT', `UID:${item.id}@onront`, `DTSTAMP:${icsDate(new Date())}`, `DTSTART;VALUE=DATE:${icsDate(date)}`, `SUMMARY:${icsText(item.name)} (${data.status === 'overdue' ? 'VENCIDO' : 'ATENÇÃO'})`, `DESCRIPTION:${icsText(data.reason)}`, 'END:VEVENT'].join('\r\n');
+  }).filter(Boolean);
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ONRONT//Manutencoes//PT', 'CALSCALE:GREGORIAN', ...events, 'END:VCALENDAR'].join('\r\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+  link.download = `onront-manutencao-${today()}.ics`;
+  link.click(); URL.revokeObjectURL(link.href);
+});
+
+// --- Sincronização por link (gzip + base64url) ---
+const base64urlEncode = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const base64urlDecode = text => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4)), char => char.charCodeAt(0));
+async function encodeSyncLink() {
+  const json = JSON.stringify(state);
+  let encoded, prefix;
+  if ('CompressionStream' in window) {
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+    encoded = base64urlEncode(new Uint8Array(await new Response(stream).arrayBuffer())); prefix = 's';
+  } else { encoded = base64urlEncode(new TextEncoder().encode(json)); prefix = 'p'; }
+  return `${location.href.split('#')[0]}#sync=${prefix}.${encoded}`;
+}
+async function applySyncLink(hash) {
+  const match = hash.match(/#sync=([sp])\.([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error('Link inválido');
+  let text;
+  if (match[1] === 's') {
+    const stream = new Blob([base64urlDecode(match[2])]).stream().pipeThrough(new DecompressionStream('gzip'));
+    text = await new Response(stream).text();
+  } else text = new TextDecoder().decode(base64urlDecode(match[2]));
+  const data = JSON.parse(text);
+  if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error('Dados inválidos');
+  state = data; saveState();
+  history.replaceState(null, '', location.pathname + location.search);
+}
+let syncLink = '';
+$('#syncExportButton').addEventListener('click', async () => {
+  try { syncLink = await encodeSyncLink(); $('#syncText').value = syncLink; $('#syncDialog').showModal(); }
+  catch { alert('Não foi possível gerar o link.'); }
+});
+$('#syncImportButton').addEventListener('click', () => { $('#syncText').value = ''; $('#syncDialog').showModal(); });
+$('#syncApplyButton').addEventListener('click', async () => {
+  try { await applySyncLink($('#syncText').value.trim()); $('#syncDialog').close(); location.reload(); }
+  catch { alert('Link de sincronização inválido.'); }
+});
+$('#syncCopyButton').addEventListener('click', async () => {
+  const text = syncLink || $('#syncText').value;
+  try { await navigator.clipboard.writeText(text); alert('Link copiado. Abra-o em outro dispositivo para transferir os dados.'); }
+  catch { alert(text); }
+});
+
+// --- Assinatura digital ---
+const signatureCanvas = $('#signatureCanvas');
+const signatureCtx = signatureCanvas.getContext('2d');
+signatureCtx.strokeStyle = '#f5f7f8'; signatureCtx.lineWidth = 3; signatureCtx.lineCap = 'round';
+let signing = false;
+const signaturePoint = event => { const rect = signatureCanvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * signatureCanvas.width / rect.width, y: (event.clientY - rect.top) * signatureCanvas.height / rect.height }; };
+signatureCanvas.addEventListener('pointerdown', event => { signing = true; signatureCanvas.setPointerCapture(event.pointerId); const point = signaturePoint(event); signatureCtx.beginPath(); signatureCtx.moveTo(point.x, point.y); });
+signatureCanvas.addEventListener('pointermove', event => { if (!signing) return; const point = signaturePoint(event); signatureCtx.lineTo(point.x, point.y); signatureCtx.stroke(); });
+signatureCanvas.addEventListener('pointerup', () => { signing = false; });
+$('#clearSignatureButton').addEventListener('click', () => signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height));
+$('#saveSignatureButton').addEventListener('click', () => { state.signature = signatureCanvas.toDataURL('image/png'); saveState(); $('#signatureDialog').close(); });
+$('#signatureButton').addEventListener('click', () => {
+  if (state.signature) { const image = new Image(); image.onload = () => signatureCtx.drawImage(image, 0, 0, signatureCanvas.width, signatureCanvas.height); image.src = state.signature; }
+  $('#signatureDialog').showModal();
+});
+const orderCode = () => { let hash = 0; const text = JSON.stringify({ bike: state.bike, km: state.bike.currentKm, log: state.serviceLog.length, date: today() }); for (let index = 0; index < text.length; index++) hash = (hash * 31 + text.charCodeAt(index)) | 0; return `OS-${today().replace(/-/g, '')}-${Math.abs(hash).toString(36).toUpperCase().slice(0, 6)}`; };
+
 // --- Exportar CSV ---
 $('#csvButton').addEventListener('click', () => {
   const rows = [['Tipo', 'Data', 'Km', 'Item', 'IntervaloKm', 'Status', 'Custo']];
   state.maintenance.forEach(item => { const status = maintenanceStatus(item); rows.push(['plano', '', String(item.lastKm), item.name, String(item.intervalKm), status.status, Number(item.cost) > 0 ? String(item.cost) : '']); });
   state.serviceLog.forEach(entry => rows.push(['serviço', String(entry.date || ''), String(entry.km), entry.name, '', '', Number(entry.cost) > 0 ? String(entry.cost) : '']));
+  state.fuelLog.forEach(entry => rows.push(['abastecimento', String(entry.date || ''), String(entry.km), entry.station || 'Combustível', String(entry.liters), '', String(entry.price)]));
   const csv = '\ufeff' + rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -453,6 +849,7 @@ $('#printOrderButton').addEventListener('click', () => {
       <div><strong>Quilometragem:</strong> ${formatNumber(state.bike.currentKm)} km</div>
       <div><strong>Situação:</strong> ${counts.ok} em dia · ${counts.warning} atenção · ${counts.overdue} vencidas</div>
       <div><strong>Serviços registrados:</strong> ${state.serviceLog.length}</div>
+      <div><strong>Código de validação:</strong> ${orderCode()}</div>
     </div>
     <h2>Itens de manutenção</h2>
     <table><thead><tr><th>Item</th><th>Status</th><th>Uso do ciclo</th><th>Próxima referência</th></tr></thead><tbody>
@@ -462,14 +859,18 @@ $('#printOrderButton').addEventListener('click', () => {
     ${recent.length ? `<table><thead><tr><th>Data</th><th>Item</th><th>Km</th><th>Custo</th></tr></thead><tbody>
       ${recent.map(entry => `<tr><td>${entry.date ? escapeHtml(formatDate(new Date(`${entry.date}T12:00:00`))) : '—'}</td><td>${escapeHtml(entry.name)}</td><td>${formatNumber(entry.km)}</td><td>${Number(entry.cost) > 0 ? formatMoney(Number(entry.cost)) : '—'}</td></tr>`).join('')}
     </tbody></table>` : '<p>Nenhum serviço registrado.</p>'}
-    <div class="so-sign"><div>Assinatura do responsável</div><div>Carimbo da oficina</div></div>
-    <p class="so-foot">Documento gerado pelo ONRONT Manutenções. Desgaste, uso severo e poeira podem exigir antecipação dos intervalos.</p>`;
+    <div class="so-sign"><div>${state.signature ? `<img src="${state.signature}" alt="Assinatura" class="so-signature">` : ''}Assinatura do responsável</div><div>Carimbo da oficina</div></div>
+    <p class="so-foot">Documento gerado pelo ONRONT Manutenções · código ${orderCode()}. Desgaste, uso severo e poeira podem exigir antecipação dos intervalos.</p>`;
   $('#settingsDialog').close();
   window.print();
 });
 
 initBikeViewer();
+applyTheme();
 render();
+if (location.hash.startsWith('#sync=')) applySyncLink(location.hash).then(() => location.reload()).catch(() => alert('Link de sincronização inválido.'));
+else if (location.search.includes('action=km')) $('#kmDialog').showModal();
+else if (location.search.includes('action=checklist')) $('#openInspectionButton').click();
 if (state.notificationsOn) checkNotifications();
 setInterval(checkNotifications, 5 * 60 * 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
