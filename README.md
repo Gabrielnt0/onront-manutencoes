@@ -2,6 +2,12 @@
 
 PWA da ONRONT para acompanhar e antecipar a manutenção de motos por quilometragem, tempo e sinais de desgaste.
 
+## Acesso público
+
+**[abrir o app](https://gabrielnt0.github.io/onront-manutencoes/)**
+
+Publicado no GitHub Pages (HTTPS, instalável como PWA). Os dados ficam no `localStorage` de cada origem: para levar os dados do arquivo local para o endereço público, use **Exportar backup (JSON)** na versão local e **Importar backup** na versão publicada.
+
 Inclui um modelo 3D geométrico e interativo da moto: arraste para girar, use pinça ou roda para zoom e toque nos pontos numerados para consultar os principais componentes. O modelo é educativo e aproximado, não uma reprodução técnica para medições ou desmontagem.
 
 ## Rodar localmente
