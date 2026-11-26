@@ -15,6 +15,7 @@ Inclui um modelo 3D geométrico e interativo da moto: arraste para girar, use pi
 - Histórico de manutenção, custo acumulado, custo por km e consumo médio.
 - Previsão por quilometragem e tempo, gráfico de uso e lembretes no app (push remoto requer VAPID + servidor).
 - Calendário mensal de km: leitura diária do hodômetro, estimativa dos dias sem leitura e marcadores das próximas manutenções previstas.
+- Estimativa de desgaste dos pneus dianteiro/traseiro a partir da km de instalação e da vida útil informada, com previsão de troca no calendário (valores iniciais são referência geral, não especificação oficial da Mottu).
 - Checklist de inspeção, garagem para várias motos e ordem de serviço com assinatura e código de validação.
 - Abastecimentos e anexos (imagens comprimidas e PDFs no IndexedDB do navegador).
 - Exportação JSON, CSV e calendário `.ics`, compartilhamento de resumo e sincronização por link/QR comprimido (gerado localmente, sem rede).

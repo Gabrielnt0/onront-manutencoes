@@ -4,7 +4,25 @@ const DAY = 86400000;
 const today = () => new Date().toISOString().slice(0, 10);
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 const defaultTheme = () => matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-const defaultState = () => ({
+const defaultTires = () => ({
+  front: { startKm: null, startDate: '', lifeKm: 15000 },
+  rear: { startKm: null, startDate: '', lifeKm: 12000 }
+});
+const normalizeTires = data => {
+  const base = defaultTires();
+  data.tires = data.tires || {};
+  ['front', 'rear'].forEach(position => {
+    const raw = data.tires[position] || {};
+    const startKm = raw.startKm === '' || raw.startKm == null ? null : Number(raw.startKm);
+    data.tires[position] = {
+      startKm: Number.isFinite(startKm) && startKm >= 0 ? startKm : null,
+      startDate: typeof raw.startDate === 'string' ? raw.startDate : '',
+      lifeKm: Number(raw.lifeKm) > 0 ? Number(raw.lifeKm) : base[position].lifeKm
+    };
+  });
+  return data;
+};
+const defaultState = () => normalizeTires({
   bike: { id: uid(), name: 'TVS Sport', year: '', currentKm: 0, historyUnknown: false },
   odometerHistory: [],
   scheduleVersion: 'mottu-sport-2026',
@@ -123,7 +141,18 @@ const I18N = {
     'leitura': 'reading', 'estimativa': 'estimate', 'manutenção prevista': 'service due',
     'Próximas manutenções': 'Upcoming maintenance',
     'Registre o hodômetro por dia: a diferença entre leituras vira os km rodados de cada dia. A previsão usa seu ritmo médio.': 'Log the odometer daily: the difference between readings becomes that day’s mileage. Forecasts use your average pace.',
-    'Leitura do dia —': 'Reading for —', 'Hodômetro neste dia': 'Odometer on this day', 'Salvar leitura': 'Save reading', 'Excluir leitura': 'Delete reading'
+    'Leitura do dia —': 'Reading for —', 'Hodômetro neste dia': 'Odometer on this day', 'Salvar leitura': 'Save reading', 'Excluir leitura': 'Delete reading',
+    'PNEUS ORIGINAIS MOTTU': 'ORIGINAL MOTTU TIRES', 'Desgaste dos pneus': 'Tire wear', 'Ajustar pneus': 'Adjust tires',
+    'Informe a km de instalação dos pneus para ver a estimativa.': 'Enter the tire installation mileage to see the estimate.',
+    'Substituir agora': 'Replace now', 'Planejar troca': 'Plan replacement', 'Em uso': 'In use', 'Previsão:': 'Forecast:',
+    'Ritmo de uso ainda em aprendizado': 'Usage pace still learning', 'Pneu dianteiro': 'Front tire', 'Pneu traseiro': 'Rear tire',
+    'Pneu:': 'Tire:', 'Dianteiro': 'Front', 'Traseiro': 'Rear', 'Registrar troca hoje': 'Log replacement today',
+    'Km na instalação': 'Installation mileage', 'Data da instalação': 'Installation date', 'Vida útil estimada (km)': 'Estimated life (km)',
+    'Informe km de instalação até a km atual e vida útil maior que zero.': 'Enter installation mileage up to the current km and a life greater than zero.',
+    'A estimativa usa a km desde a instalação e a vida útil informada. Confira os sulcos e o indicador TWI: não substitui inspeção física.': 'The estimate uses mileage since installation and the informed life. Check tread grooves and the TWI marker: it does not replace a physical inspection.',
+    'Valores iniciais são referência geral, não especificação oficial da Mottu.': 'Initial values are a general reference, not an official Mottu specification.',
+    'Deixe a km de instalação em branco se não souber. Você também pode registrar a troca no dia em que ela acontecer.': 'Leave installation mileage blank if you do not know it. You can also log the replacement on the day it happens.',
+    'Salvar estimativa': 'Save estimate'
   },
   es: {
     'ONRONT MANUTENÇÕES': 'ONRONT MANTENIMIENTOS', 'Garagem: trocar de moto': 'Garaje: cambiar de moto',
@@ -181,7 +210,18 @@ const I18N = {
     'leitura': 'lectura', 'estimativa': 'estimación', 'manutenção prevista': 'mantenimiento previsto',
     'Próximas manutenções': 'Próximos mantenimientos',
     'Registre o hodômetro por dia: a diferença entre leituras vira os km rodados de cada dia. A previsão usa seu ritmo médio.': 'Registra el odómetro cada día: la diferencia entre lecturas son los kilómetros de cada día. Las previsiones usan tu ritmo medio.',
-    'Leitura do dia —': 'Lectura del día —', 'Hodômetro neste dia': 'Odómetro de este día', 'Salvar leitura': 'Guardar lectura', 'Excluir leitura': 'Eliminar lectura'
+    'Leitura do dia —': 'Lectura del día —', 'Hodômetro neste dia': 'Odómetro de este día', 'Salvar leitura': 'Guardar lectura', 'Excluir leitura': 'Eliminar lectura',
+    'PNEUS ORIGINAIS MOTTU': 'NEUMÁTICOS ORIGINALES MOTTU', 'Desgaste dos pneus': 'Desgaste de neumáticos', 'Ajustar pneus': 'Ajustar neumáticos',
+    'Informe a km de instalação dos pneus para ver a estimativa.': 'Indica el kilometraje de instalación para ver la estimación.',
+    'Substituir agora': 'Sustituir ahora', 'Planejar troca': 'Planificar cambio', 'Em uso': 'En uso', 'Previsão:': 'Previsión:',
+    'Ritmo de uso ainda em aprendizado': 'Ritmo de uso aún en aprendizaje', 'Pneu dianteiro': 'Neumático delantero', 'Pneu traseiro': 'Neumático trasero',
+    'Pneu:': 'Neumático:', 'Dianteiro': 'Delantero', 'Traseiro': 'Trasero', 'Registrar troca hoje': 'Registrar cambio hoy',
+    'Km na instalação': 'Km en la instalación', 'Data da instalação': 'Fecha de instalación', 'Vida útil estimada (km)': 'Vida útil estimada (km)',
+    'Informe km de instalação até a km atual e vida útil maior que zero.': 'Indica km de instalación hasta el km actual y una vida útil mayor que cero.',
+    'A estimativa usa a km desde a instalação e a vida útil informada. Confira os sulcos e o indicador TWI: não substitui inspeção física.': 'La estimación usa el km desde la instalación y la vida útil indicada. Revisa los surcos y el indicador TWI: no sustituye una inspección física.',
+    'Valores iniciais são referência geral, não especificação oficial da Mottu.': 'Los valores iniciales son una referencia general, no una especificación oficial de Mottu.',
+    'Deixe a km de instalação em branco se não souber. Você também pode registrar a troca no dia em que ela acontecer.': 'Deja el km de instalación en blanco si no lo sabes. También puedes registrar el cambio el día en que ocurra.',
+    'Salvar estimativa': 'Guardar estimación'
   }
 };
 const t = text => I18N[state.ui.lang]?.[text] ?? text;
@@ -220,6 +260,7 @@ function loadState() {
     saved.ui = { theme: defaultTheme(), lang: 'pt', ...(saved.ui || {}) };
     saved.push = { enabled: false, vapid: '', endpoint: '', ...(saved.push || {}) };
     saved.signature = saved.signature || null;
+    normalizeTires(saved);
     if (!saved.bike.id) saved.bike.id = uid();
     if (saved.scheduleVersion !== 'mottu-sport-2026') {
       const upgrades = {
@@ -251,7 +292,9 @@ function showPart(name) {
     const percent = Math.round(wear.progress);
     $('#partWearValue').textContent = `${percent}%`;
     $('#partWearFill').style.width = `${percent}%`;
-    $('#partWearMeta').textContent = `${formatNumber(usedKm)} km usados desde a última referência • ${wear.reason}`;
+    const tirePosition = name === 'Pneu dianteiro' ? 'front' : name === 'Pneu traseiro' ? 'rear' : null;
+    const tire = tirePosition ? tireForecasts().find(item => item.position === tirePosition) : null;
+    $('#partWearMeta').textContent = `${formatNumber(usedKm)} km usados desde a última referência • ${wear.reason}${tire ? ` • ${t('Pneu:')} ${Math.round(tire.wear)}% (${formatNumber(tire.kmLeft)} ${t('km restantes')})` : ''}`;
     const visual = photoAssessment[name];
     $('#partPhotoEstimate').textContent = visual ? `Fotos: ${visual[0]} (confiança ${visual[1]}).` : 'Fotos: esta peça não pode ser avaliada visualmente com segurança.';
   }
@@ -365,6 +408,7 @@ function render() {
   renderAttachments();
   renderUsageChart();
   renderCalendar();
+  renderTires();
   renderInspection();
   updateMarkerStatuses(analyzed);
   renderSmartAssistant(analyzed);
@@ -519,6 +563,11 @@ function renderCalendar() {
     const key = dateKey(data.forecastDate);
     events.set(key, [...(events.get(key) || []), data.status]);
   });
+  tireForecasts().forEach(tire => {
+    if (!tire.date) return;
+    const key = dateKey(tire.date);
+    events.set(key, [...(events.get(key) || []), tire.status]);
+  });
   const offset = (new Date(year, month, 1).getDay() + 6) % 7;
   const days = new Date(year, month + 1, 0).getDate();
   let cells = '<div class="cal-cell blank"></div>'.repeat(offset);
@@ -538,9 +587,85 @@ function renderCalendar() {
   }
   $('#calendarGrid').innerHTML = cells;
   $('#calendarGrid').querySelectorAll('[data-date]').forEach(button => button.addEventListener('click', () => openDay(button.dataset.date)));
-  const upcoming = state.maintenance.map(item => ({ item, data: maintenanceStatus(item) })).filter(entry => entry.data.forecastDate).sort((a, b) => a.data.forecastDate - b.data.forecastDate).slice(0, 3);
-  $('#calendarForecast').innerHTML = upcoming.length ? `<strong class="forecast-title">${t('Próximas manutenções')}</strong>${upcoming.map(({ item, data }) => `<div class="forecast-row"><i class="legend-dot ${data.status}"></i><span>${escapeHtml(item.name)}</span><strong>${formatDate(data.forecastDate)}</strong></div>`).join('')}` : '';
+  const upcoming = [
+    ...state.maintenance.map(item => ({ name: item.name, data: maintenanceStatus(item) })),
+    ...tireForecasts().filter(tire => tire.date).map(tire => ({ name: tire.name, data: { forecastDate: tire.date, status: tire.status } }))
+  ].filter(entry => entry.data.forecastDate).sort((a, b) => a.data.forecastDate - b.data.forecastDate).slice(0, 3);
+  $('#calendarForecast').innerHTML = upcoming.length ? `<strong class="forecast-title">${t('Próximas manutenções')}</strong>${upcoming.map(({ name, data }) => `<div class="forecast-row"><i class="legend-dot ${data.status}"></i><span>${escapeHtml(name)}</span><strong>${formatDate(data.forecastDate)}</strong></div>`).join('')}` : '';
 }
+
+const tireNames = { front: 'Pneu dianteiro', rear: 'Pneu traseiro' };
+function tireForecasts() {
+  const daily = usageForecast().daily;
+  const currentKm = Number(state.bike.currentKm);
+  return ['front', 'rear'].map(position => {
+    const tire = state.tires?.[position] || {};
+    if (tire.startKm == null || tire.startKm === '') return null;
+    const startKm = Number(tire.startKm);
+    const lifeKm = Number(tire.lifeKm);
+    if (!Number.isFinite(startKm) || !(lifeKm > 0)) return null;
+    const usedKm = Math.max(0, currentKm - startKm);
+    const wear = Math.min(100, usedKm / lifeKm * 100);
+    const kmLeft = Math.max(0, lifeKm - usedKm);
+    const date = daily > 0 && kmLeft > 0 ? new Date(Date.now() + kmLeft / daily * DAY) : null;
+    const status = wear >= 100 ? 'overdue' : wear >= 80 ? 'warning' : 'ok';
+    return { position, name: tireNames[position], startKm, lifeKm, usedKm, kmLeft, wear, date, status };
+  }).filter(Boolean);
+}
+
+function renderTires() {
+  const container = $('#tireGrid');
+  const rows = tireForecasts();
+  if (!rows.length) { container.innerHTML = `<div class="empty">${t('Informe a km de instalação dos pneus para ver a estimativa.')}</div>`; return; }
+  container.innerHTML = rows.map(row => {
+    const level = row.wear >= 100 ? t('Substituir agora') : row.wear >= 80 ? t('Planejar troca') : t('Em uso');
+    const meta = row.date ? `${t('Previsão:')} ${formatDate(row.date)}` : t('Ritmo de uso ainda em aprendizado');
+    return `<article class="tire-row" data-status="${row.status}">
+      <div class="tire-head"><div><strong>${t(row.name)}</strong><span>${formatNumber(row.usedKm)} / ${formatNumber(row.lifeKm)} km</span></div><b>${Math.round(row.wear)}%</b></div>
+      <div class="tire-track"><i style="width:${row.wear}%"></i></div>
+      <div class="tire-meta"><span>${level} · ${formatNumber(row.kmLeft)} ${t('km restantes')}</span><span>${meta}</span></div>
+    </article>`;
+  }).join('');
+}
+
+function openTireDialog() {
+  const values = normalizeTires({ tires: state.tires }).tires;
+  ['front', 'rear'].forEach(position => {
+    const tire = values[position];
+    $(`#${position}StartKm`).value = tire.startKm ?? '';
+    $(`#${position}StartDate`).value = tire.startDate || '';
+    $(`#${position}LifeKm`).value = tire.lifeKm;
+  });
+  $('#tireError').textContent = '';
+  $('#tireDialog').showModal();
+}
+
+$('#tireSettingsButton').addEventListener('click', openTireDialog);
+document.querySelectorAll('[data-tire-now]').forEach(button => button.addEventListener('click', () => {
+  const position = button.dataset.tireNow;
+  $(`#${position}StartKm`).value = state.bike.currentKm;
+  $(`#${position}StartDate`).value = today();
+  $('#tireError').textContent = '';
+}));
+$('#tireForm').addEventListener('submit', event => {
+  if (event.submitter?.value === 'cancel') return;
+  event.preventDefault();
+  const currentKm = Number(state.bike.currentKm);
+  const next = defaultTires();
+  for (const position of ['front', 'rear']) {
+    const rawStart = $(`#${position}StartKm`).value.trim();
+    const startKm = rawStart === '' ? null : Number(rawStart);
+    const lifeKm = Number($(`#${position}LifeKm`).value);
+    if ((startKm != null && (!Number.isFinite(startKm) || startKm < 0 || startKm > currentKm)) || !(lifeKm > 0)) {
+      $('#tireError').textContent = t('Informe km de instalação até a km atual e vida útil maior que zero.');
+      return;
+    }
+    next[position] = { startKm, startDate: $(`#${position}StartDate`).value, lifeKm };
+  }
+  state.tires = next;
+  $('#tireDialog').close();
+  saveState();
+});
 
 function openDay(key) {
   const history = sortedReadings();
@@ -734,7 +859,7 @@ $('#confirmDeliveryReviewButton').addEventListener('click', () => {
   saveState();
 });
 $('#exportButton').addEventListener('click', () => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' })); link.download = `moto-em-dia-${today()}.json`; link.click(); URL.revokeObjectURL(link.href); });
-$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: defaultTheme(), lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
+$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: defaultTheme(), lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; normalizeTires(data); state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
 document.querySelectorAll('dialog .close').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 
 // --- Inspeção condicional (checklist) ---
@@ -755,8 +880,8 @@ $('#inspectionForm').addEventListener('submit', event => {
 $('#clearInspectionButton').addEventListener('click', () => { state.inspection = null; saveState(); $('#inspectionDialog').close(); });
 
 // --- Garagem (multi-moto por troca de snapshot) ---
-const bikeSnapshot = () => ({ bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion, serviceLog: state.serviceLog, fuelLog: state.fuelLog, inspection: state.inspection, maintenance: state.maintenance });
-const applyBikeSnapshot = snap => { state.bike = snap.bike; state.odometerHistory = Array.isArray(snap.odometerHistory) ? snap.odometerHistory : []; state.scheduleVersion = snap.scheduleVersion || 'mottu-sport-2026'; state.serviceLog = Array.isArray(snap.serviceLog) ? snap.serviceLog : []; state.fuelLog = Array.isArray(snap.fuelLog) ? snap.fuelLog : []; state.inspection = snap.inspection || null; state.maintenance = Array.isArray(snap.maintenance) ? snap.maintenance : defaultState().maintenance; };
+const bikeSnapshot = () => ({ bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion, serviceLog: state.serviceLog, fuelLog: state.fuelLog, inspection: state.inspection, maintenance: state.maintenance, tires: state.tires });
+const applyBikeSnapshot = snap => { state.bike = snap.bike; state.odometerHistory = Array.isArray(snap.odometerHistory) ? snap.odometerHistory : []; state.scheduleVersion = snap.scheduleVersion || 'mottu-sport-2026'; state.serviceLog = Array.isArray(snap.serviceLog) ? snap.serviceLog : []; state.fuelLog = Array.isArray(snap.fuelLog) ? snap.fuelLog : []; state.inspection = snap.inspection || null; state.maintenance = Array.isArray(snap.maintenance) ? snap.maintenance : defaultState().maintenance; state.tires = normalizeTires({ tires: snap.tires }).tires; };
 
 function renderGarage() {
   const list = $('#bikesList');
@@ -891,6 +1016,7 @@ async function applySyncLink(hash) {
   } else text = new TextDecoder().decode(base64urlDecode(match[2]));
   const data = JSON.parse(text);
   if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error('Dados inválidos');
+  normalizeTires(data);
   state = data; saveState();
   history.replaceState(null, '', location.pathname + location.search);
 }

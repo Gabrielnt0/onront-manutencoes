@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=18">
   <title>ONRONT Manutenções</title>
 </head>
 <body>
@@ -75,6 +75,15 @@
       <p class="calendar-legend"><span><i class="legend-dot read"></i> leitura</span><span><i class="legend-dot estimate"></i> estimativa</span><span><i class="legend-dot service"></i> manutenção prevista</span></p>
       <div id="calendarForecast" class="calendar-forecast"></div>
       <p class="hint">Registre o hodômetro por dia: a diferença entre leituras vira os km rodados de cada dia. A previsão usa seu ritmo médio.</p>
+    </section>
+
+    <section class="tire-card" aria-labelledby="tireTitle">
+      <div class="section-heading">
+        <div><p class="eyebrow">PNEUS ORIGINAIS MOTTU</p><h2 id="tireTitle">Desgaste dos pneus</h2></div>
+        <button class="text-button" id="tireSettingsButton" type="button">Ajustar pneus</button>
+      </div>
+      <div id="tireGrid" class="tire-grid"></div>
+      <p class="hint">A estimativa usa a km desde a instalação e a vida útil informada. Confira os sulcos e o indicador TWI: não substitui inspeção física. Valores iniciais são referência geral, não especificação oficial da Mottu.</p>
     </section>
 
     <section class="visual-guide" aria-labelledby="visualGuideTitle">
@@ -312,6 +321,29 @@
     </form>
   </dialog>
 
+  <dialog id="tireDialog">
+    <form method="dialog" id="tireForm">
+      <div class="dialog-title"><h2>Ajustar pneus</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
+      <fieldset>
+        <legend>Dianteiro</legend>
+        <label>Km na instalação<input id="frontStartKm" type="number" min="0" step="1" inputmode="numeric" placeholder="Ex.: 180000"></label>
+        <label>Data da instalação<input id="frontStartDate" type="date"></label>
+        <label>Vida útil estimada (km)<input id="frontLifeKm" type="number" min="1000" step="500" required></label>
+        <button class="secondary" type="button" data-tire-now="front">Registrar troca hoje</button>
+      </fieldset>
+      <fieldset>
+        <legend>Traseiro</legend>
+        <label>Km na instalação<input id="rearStartKm" type="number" min="0" step="1" inputmode="numeric" placeholder="Ex.: 180000"></label>
+        <label>Data da instalação<input id="rearStartDate" type="date"></label>
+        <label>Vida útil estimada (km)<input id="rearLifeKm" type="number" min="1000" step="500" required></label>
+        <button class="secondary" type="button" data-tire-now="rear">Registrar troca hoje</button>
+      </fieldset>
+      <p class="hint">Deixe a km de instalação em branco se não souber. Você também pode registrar a troca no dia em que ela acontecer.</p>
+      <p class="error" id="tireError" role="alert"></p>
+      <button class="primary" value="default">Salvar estimativa</button>
+    </form>
+  </dialog>
+
   <dialog id="syncDialog">
     <div class="dialog-title"><h2>Sincronização por link</h2><button type="button" class="close" aria-label="Fechar">×</button></div>
     <p class="hint">O link contém uma cópia comprimida dos dados. Copie e abra em outro dispositivo para transferir. Nada é enviado para a nuvem.</p>
@@ -331,8 +363,8 @@
 
   <div class="service-order" id="serviceOrder" aria-hidden="true"></div>
 
-  <script src="bike3d.js?v=16" defer></script>
-  <script src="qrcode.js?v=16" defer></script>
-  <script src="app.js?v=16" defer></script>
+  <script src="bike3d.js?v=18" defer></script>
+  <script src="qrcode.js?v=18" defer></script>
+  <script src="app.js?v=18" defer></script>
 </body>
 </html>

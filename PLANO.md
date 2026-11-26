@@ -176,6 +176,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 | 21 | Modo oficina (assinatura + código de validação) | Grande | ✅ Concluído |
 | 22 | Internacionalização (pt-BR / en / es) | Grande | ✅ Concluído |
 | 23 | Calendário mensal de km com leitura diária e previsão de manutenção | Médio | ✅ Concluído |
+| 24 | Estimativa de desgaste dos pneus originais Mottu | Rápido | ✅ Concluído |
 
 ## Decisões técnicas
 
@@ -193,6 +194,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 - **22** — dicionário `I18N` com 3 idiomas + `applyLang()` varrendo nós de texto e atributos (`TreeWalker`); `state.ui.lang`.
 - **18/21** — QR gerado em SVG por `qrcode.js` local (MIT, sem rede em runtime) e código de validação SHA-256 via `crypto.subtle` com fallback.
 - **23** — reuso de `state.odometerHistory` e `usageForecast()`; grade mensal com leitura real/estimada e `forecastDate` calculado em `maintenanceStatus()`; leitura validada entre registros vizinhos e compatível com o atalho `?action=calendar`.
+- **24** — `state.tires` por posição (`startKm`, `startDate`, `lifeKm`) com defaults editáveis 15.000 km dianteiro / 12.000 km traseiro; `tireForecasts()` calcula desgaste, km restantes e data usando `usageForecast()`; a previsão entra no calendário e no guia visual. Vida útil é referência geral, não dado oficial da Mottu.
 
 ## Ordem de implementação
 

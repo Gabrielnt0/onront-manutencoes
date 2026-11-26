@@ -10,12 +10,12 @@ const sw = read('sw.js');
 const manifest = JSON.parse(read('manifest.webmanifest'));
 
 test('elementos obrigatórios da interface existem', () => {
-  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'syncQr', 'calendarGrid', 'calendarForecast', 'calendarTodayButton', 'dayDialog', 'dayKm', 'deleteDayButton', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
+  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'syncQr', 'calendarGrid', 'calendarForecast', 'calendarTodayButton', 'dayDialog', 'dayKm', 'deleteDayButton', 'tireGrid', 'tireSettingsButton', 'tireDialog', 'tireForm', 'frontStartKm', 'frontLifeKm', 'rearStartKm', 'rearLifeKm', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
   ids.forEach(id => assert.match(html, new RegExp(`id="${id}"`), `falta #${id}`));
 });
 
 test('estado persistente contém as chaves da Fase 2', () => {
-  ['fuelLog:', 'ui: { theme:', 'push: { enabled:', 'signature: null'].forEach(fragment => assert.ok(app.includes(fragment), `falta ${fragment}`));
+  ['fuelLog:', 'ui: { theme:', 'push: { enabled:', 'signature: null', 'const defaultTires', 'normalizeTires(saved)'].forEach(fragment => assert.ok(app.includes(fragment), `falta ${fragment}`));
   ['saved.fuelLog', 'saved.ui', 'saved.push', 'saved.signature'].forEach(fragment => assert.ok(app.includes(fragment), `migração ausente: ${fragment}`));
 });
 
@@ -34,6 +34,10 @@ test('recursos avançados estão presentes', () => {
   assert.ok(app.includes("function renderCalendar()"));
   assert.ok(app.includes("function estimateKm(key)"));
   assert.ok(app.includes("forecastDate: effectiveDate"));
+  assert.ok(app.includes("function tireForecasts()"));
+  assert.ok(app.includes("function renderTires()"));
+  assert.ok(css.includes('.tire-track'));
+  assert.ok(app.includes('tire.startKm == null'));
 });
 
 test('manifesto e service worker apontam para a versão atual', () => {
@@ -41,9 +45,9 @@ test('manifesto e service worker apontam para a versão atual', () => {
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=km')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=checklist')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=calendar')));
-  assert.ok(sw.includes('onront-manutencoes-v17'));
-  ['styles.css?v=16', 'bike3d.js?v=16', 'qrcode.js?v=16', 'app.js?v=16'].forEach(asset => assert.ok(sw.includes(asset)));
-  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=16')));
+  assert.ok(sw.includes('onront-manutencoes-v19'));
+  ['styles.css?v=18', 'bike3d.js?v=18', 'qrcode.js?v=18', 'app.js?v=18'].forEach(asset => assert.ok(sw.includes(asset)));
+  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=18')));
 });
 
 test('nenhuma dependência externa em runtime', () => {

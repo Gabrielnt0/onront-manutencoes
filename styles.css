@@ -148,6 +148,15 @@ textarea { width:100%; border:1px solid var(--border); border-radius:14px; paddi
 .calendar-forecast { margin-top:10px; }.forecast-title { display:block; margin-bottom:6px; font-size:.72rem; }
 .forecast-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--border); font-size:.72rem; }
 .forecast-row span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.forecast-row strong { font-size:.7rem; color:var(--muted); white-space:nowrap; }
+.tire-card { margin-bottom:26px; padding:17px; border:1px solid var(--border); border-radius:22px; background:var(--panel); }
+.tire-grid { display:grid; gap:10px; margin-top:14px; }
+.tire-row { padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--panel-2); }
+.tire-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }.tire-head div { display:flex; flex-direction:column; gap:3px; }.tire-head strong { font-size:.86rem; }.tire-head span { font-size:.66rem; color:var(--muted); }.tire-head b { font-size:1.15rem; color:var(--brand); }
+.tire-track { height:7px; margin:10px 0 8px; border-radius:6px; background:var(--border); overflow:hidden; }.tire-track i { display:block; height:100%; border-radius:6px; background:var(--brand); transition:width .3s ease; }
+.tire-row[data-status="warning"] .tire-track i { background:var(--warning); }.tire-row[data-status="overdue"] .tire-track i { background:var(--danger); }
+.tire-row[data-status="warning"] .tire-head b { color:var(--warning); }.tire-row[data-status="overdue"] .tire-head b { color:var(--danger); }
+.tire-meta { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:.66rem; color:var(--muted); }
+.tire-card fieldset { margin:12px 0; padding:12px; border:1px solid var(--border); border-radius:14px; }.tire-card legend { padding:0 6px; font-size:.72rem; font-weight:700; color:var(--brand); }
 .sync-qr { display:grid; place-items:center; margin:12px 0; padding:10px; background:#fff; border-radius:14px; }
 .sync-qr:empty { display:none; }.sync-qr svg { width:min(100%,232px); height:auto; }
 select { width:100%; border:1px solid var(--border); border-radius:12px; padding:11px; background:var(--panel-2); color:var(--text); }
