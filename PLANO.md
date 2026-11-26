@@ -175,6 +175,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 | 20 | OCR do hodômetro (Shape Detection API) | Grande | ✅ Concluído |
 | 21 | Modo oficina (assinatura + código de validação) | Grande | ✅ Concluído |
 | 22 | Internacionalização (pt-BR / en / es) | Grande | ✅ Concluído |
+| 23 | Calendário mensal de km com leitura diária e previsão de manutenção | Médio | ✅ Concluído |
 
 ## Decisões técnicas
 
@@ -191,6 +192,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 - **21** — assinatura em `<canvas>` embutida na ordem de serviço + código curto SHA-256 dos dados impressos. Validação pública exige backend (fora do escopo estático).
 - **22** — dicionário `I18N` com 3 idiomas + `applyLang()` varrendo nós de texto e atributos (`TreeWalker`); `state.ui.lang`.
 - **18/21** — QR gerado em SVG por `qrcode.js` local (MIT, sem rede em runtime) e código de validação SHA-256 via `crypto.subtle` com fallback.
+- **23** — reuso de `state.odometerHistory` e `usageForecast()`; grade mensal com leitura real/estimada e `forecastDate` calculado em `maintenanceStatus()`; leitura validada entre registros vizinhos e compatível com o atalho `?action=calendar`.
 
 ## Ordem de implementação
 

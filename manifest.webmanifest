@@ -11,6 +11,7 @@
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }],
   "shortcuts": [
     { "name": "Atualizar km", "short_name": "Km", "description": "Registrar leitura do hodômetro", "url": "?action=km", "icons": [{ "src": "icon.svg", "sizes": "any" }] },
-    { "name": "Checklist", "short_name": "Inspeção", "description": "Registrar inspeção geral", "url": "?action=checklist", "icons": [{ "src": "icon.svg", "sizes": "any" }] }
+    { "name": "Checklist", "short_name": "Inspeção", "description": "Registrar inspeção geral", "url": "?action=checklist", "icons": [{ "src": "icon.svg", "sizes": "any" }] },
+    { "name": "Calendário de km", "short_name": "Calendário", "description": "Registrar km do dia e ver previsões", "url": "?action=calendar", "icons": [{ "src": "icon.svg", "sizes": "any" }] }
   ]
 }

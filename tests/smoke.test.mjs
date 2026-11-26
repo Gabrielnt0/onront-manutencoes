@@ -10,7 +10,7 @@ const sw = read('sw.js');
 const manifest = JSON.parse(read('manifest.webmanifest'));
 
 test('elementos obrigatórios da interface existem', () => {
-  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'syncQr', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
+  const ids = ['bikesButton', 'settingsButton', 'updateKmButton', 'scanOdometerButton', 'addFuelButton', 'addAttachmentButton', 'costPerKm', 'avgConsumption', 'fuelList', 'attachmentList', 'calendarButton', 'syncExportButton', 'syncImportButton', 'syncQr', 'calendarGrid', 'calendarForecast', 'calendarTodayButton', 'dayDialog', 'dayKm', 'deleteDayButton', 'signatureButton', 'pushInput', 'vapidInput', 'themeSelect', 'langSelect', 'serviceOrder'];
   ids.forEach(id => assert.match(html, new RegExp(`id="${id}"`), `falta #${id}`));
 });
 
@@ -31,15 +31,19 @@ test('recursos avançados estão presentes', () => {
   assert.ok(app.includes('renderSyncQr'));
   assert.ok(app.includes("crypto.subtle.digest('SHA-256'"));
   assert.ok(app.includes("prefers-color-scheme: light"));
+  assert.ok(app.includes("function renderCalendar()"));
+  assert.ok(app.includes("function estimateKm(key)"));
+  assert.ok(app.includes("forecastDate: effectiveDate"));
 });
 
 test('manifesto e service worker apontam para a versão atual', () => {
-  assert.equal(manifest.shortcuts.length, 2);
+  assert.equal(manifest.shortcuts.length, 3);
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=km')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=checklist')));
-  assert.ok(sw.includes('onront-manutencoes-v15'));
-  ['styles.css?v=14', 'bike3d.js?v=14', 'qrcode.js?v=14', 'app.js?v=14'].forEach(asset => assert.ok(sw.includes(asset)));
-  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=14')));
+  assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=calendar')));
+  assert.ok(sw.includes('onront-manutencoes-v17'));
+  ['styles.css?v=16', 'bike3d.js?v=16', 'qrcode.js?v=16', 'app.js?v=16'].forEach(asset => assert.ok(sw.includes(asset)));
+  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=16')));
 });
 
 test('nenhuma dependência externa em runtime', () => {

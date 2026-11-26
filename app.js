@@ -117,7 +117,13 @@ const I18N = {
     'Descrição': 'Description', 'Salvar anexo': 'Save attachment',
     'Sincronização por link': 'Sync by link', 'Aplicar dados do link': 'Apply link data', 'Copiar link gerado': 'Copy generated link',
     'Assinatura do responsável': 'Signature of responsible person', 'Assinar': 'Sign', 'Limpar': 'Clear',
-    'Salvar assinatura': 'Save signature'
+    'Salvar assinatura': 'Save signature',
+    'DIÁRIO DE USO': 'USAGE LOG', 'Calendário de km': 'Mileage calendar', '+ Registrar hoje': '+ Log today',
+    'Seg': 'Mon', 'Ter': 'Tue', 'Qua': 'Wed', 'Qui': 'Thu', 'Sex': 'Fri', 'Sáb': 'Sat', 'Dom': 'Sun',
+    'leitura': 'reading', 'estimativa': 'estimate', 'manutenção prevista': 'service due',
+    'Próximas manutenções': 'Upcoming maintenance',
+    'Registre o hodômetro por dia: a diferença entre leituras vira os km rodados de cada dia. A previsão usa seu ritmo médio.': 'Log the odometer daily: the difference between readings becomes that day’s mileage. Forecasts use your average pace.',
+    'Leitura do dia —': 'Reading for —', 'Hodômetro neste dia': 'Odometer on this day', 'Salvar leitura': 'Save reading', 'Excluir leitura': 'Delete reading'
   },
   es: {
     'ONRONT MANUTENÇÕES': 'ONRONT MANTENIMIENTOS', 'Garagem: trocar de moto': 'Garaje: cambiar de moto',
@@ -169,7 +175,13 @@ const I18N = {
     'Descrição': 'Descripción', 'Salvar anexo': 'Guardar adjunto',
     'Sincronização por link': 'Sincronización por enlace', 'Aplicar dados do link': 'Aplicar datos del enlace',
     'Copiar link gerado': 'Copiar enlace generado', 'Assinatura do responsável': 'Firma del responsable',
-    'Assinar': 'Firmar', 'Limpar': 'Limpiar', 'Salvar assinatura': 'Guardar firma'
+    'Assinar': 'Firmar', 'Limpar': 'Limpiar', 'Salvar assinatura': 'Guardar firma',
+    'DIÁRIO DE USO': 'REGISTRO DE USO', 'Calendário de km': 'Calendario de kilómetros', '+ Registrar hoje': '+ Registrar hoy',
+    'Seg': 'Lun', 'Ter': 'Mar', 'Qua': 'Mié', 'Qui': 'Jue', 'Sex': 'Vie', 'Sáb': 'Sáb', 'Dom': 'Dom',
+    'leitura': 'lectura', 'estimativa': 'estimación', 'manutenção prevista': 'mantenimiento previsto',
+    'Próximas manutenções': 'Próximos mantenimientos',
+    'Registre o hodômetro por dia: a diferença entre leituras vira os km rodados de cada dia. A previsão usa seu ritmo médio.': 'Registra el odómetro cada día: la diferencia entre lecturas son los kilómetros de cada día. Las previsiones usan tu ritmo medio.',
+    'Leitura do dia —': 'Lectura del día —', 'Hodômetro neste dia': 'Odómetro de este día', 'Salvar leitura': 'Guardar lectura', 'Excluir leitura': 'Eliminar lectura'
   }
 };
 const t = text => I18N[state.ui.lang]?.[text] ?? text;
@@ -303,7 +315,7 @@ function maintenanceStatus(item) {
   const kmProgress = Number.isFinite(kmLimit) ? (Number(state.bike.currentKm) - Number(item.lastKm)) / Number(item.intervalKm) : 0;
   const dateProgress = dateLimit ? (new Date() - new Date(`${item.lastDate}T12:00:00`)) / (dateLimit - new Date(`${item.lastDate}T12:00:00`)) : 0;
   const progress = Math.max(kmProgress, dateProgress, 0);
-  if ((state.bike.historyUnknown || item.historyUnknown) && Number(item.lastKm) === 0) return { status: 'warning', progress: 90, reason: item.historyUnknown ? 'Confirmar na ordem de serviço' : 'Histórico desconhecido', next: 'confirmar manutenção' };
+  if ((state.bike.historyUnknown || item.historyUnknown) && Number(item.lastKm) === 0) return { status: 'warning', progress: 90, reason: item.historyUnknown ? 'Confirmar na ordem de serviço' : 'Histórico desconhecido', next: 'confirmar manutenção', forecastDate: null };
   const overdue = kmLeft <= 0 || daysLeft <= 0;
   const warning = !overdue && (kmLeft <= Math.max(300, Number(item.intervalKm) * .1) || daysLeft <= 30 || progress >= .9);
   const reason = kmLeft <= 0 ? `${formatNumber(Math.abs(kmLeft))} ${t('km atrasado')}` : daysLeft <= 0 ? `${Math.abs(daysLeft)} ${t('dias atrasado')}` : warning ? (kmLeft / Math.max(daysLeft, 1) < 15 ? `${t('Faltam')} ${formatNumber(kmLeft)} km` : `${t('Faltam')} ${daysLeft} dias`) : Number.isFinite(kmLeft) ? `${formatNumber(kmLeft)} ${t('km restantes')}` : `${daysLeft} dias restantes`;
@@ -311,7 +323,7 @@ function maintenanceStatus(item) {
   const forecastDate = usage.daily > 0 && Number.isFinite(kmLeft) && kmLeft > 0 ? new Date(Date.now() + (kmLeft / usage.daily) * DAY) : null;
   const effectiveDate = forecastDate && (!dateLimit || forecastDate < dateLimit) ? forecastDate : dateLimit;
   const next = [Number.isFinite(kmLimit) ? `${formatNumber(kmLimit)} km` : '', effectiveDate ? `estimativa ${formatDate(effectiveDate)}` : ''].filter(Boolean).join(' · ');
-  return { status: overdue ? 'overdue' : warning ? 'warning' : 'ok', progress: Math.min(progress * 100, 100), reason, next };
+  return { status: overdue ? 'overdue' : warning ? 'warning' : 'ok', progress: Math.min(progress * 100, 100), reason, next, forecastDate: effectiveDate };
 }
 
 function render() {
@@ -352,6 +364,7 @@ function render() {
   renderFuel();
   renderAttachments();
   renderUsageChart();
+  renderCalendar();
   renderInspection();
   updateMarkerStatuses(analyzed);
   renderSmartAssistant(analyzed);
@@ -468,6 +481,115 @@ function renderUsageChart() {
     </svg>
     <div class="chart-caption"><span>${history.length} ${t('leituras')} · ${formatNumber(minKm)}–${formatNumber(maxKm)} km</span><span>${usage.daily > 0 ? `${usage.daily.toFixed(1).replace('.', ',')} ${t('km/dia')}` : t('Ritmo em aprendizado')}</span></div>`;
 }
+
+const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const readDate = key => new Date(`${key}T12:00:00`);
+const sortedReadings = () => [...state.odometerHistory].filter(reading => reading.date && Number.isFinite(Number(reading.km))).sort((a, b) => a.date.localeCompare(b.date));
+
+function estimateKm(key) {
+  const history = sortedReadings();
+  const exact = history.find(reading => reading.date === key);
+  if (exact) return Number(exact.km);
+  const before = [...history].reverse().find(reading => reading.date < key);
+  const after = history.find(reading => reading.date > key);
+  const time = readDate(key);
+  if (before && after) {
+    const span = (readDate(after.date) - readDate(before.date)) / DAY;
+    if (span > 0) return Number(before.km) + (Number(after.km) - Number(before.km)) * ((time - readDate(before.date)) / DAY) / span;
+  }
+  const anchor = before || after;
+  if (!anchor) return null;
+  const days = Math.abs((time - readDate(anchor.date)) / DAY);
+  return Math.max(0, Number(anchor.km) + (before ? 1 : -1) * days * usageForecast().daily);
+}
+
+let calendarMonth = new Date();
+calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+
+function renderCalendar() {
+  const year = calendarMonth.getFullYear(), month = calendarMonth.getMonth();
+  $('#calendarMonth').textContent = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(calendarMonth);
+  const history = sortedReadings();
+  const readings = new Map(history.map(reading => [reading.date, Number(reading.km)]));
+  const daily = usageForecast().daily;
+  const events = new Map();
+  state.maintenance.forEach(item => {
+    const data = maintenanceStatus(item);
+    if (!data.forecastDate) return;
+    const key = dateKey(data.forecastDate);
+    events.set(key, [...(events.get(key) || []), data.status]);
+  });
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const days = new Date(year, month + 1, 0).getDate();
+  let cells = '<div class="cal-cell blank"></div>'.repeat(offset);
+  for (let day = 1; day <= days; day++) {
+    const key = dateKey(new Date(year, month, day));
+    const km = readings.get(key);
+    const previous = history.filter(reading => reading.date < key).at(-1);
+    const driven = km != null && previous ? Math.max(0, km - Number(previous.km)) : null;
+    const statuses = events.get(key) || [];
+    const eventClass = statuses.includes('overdue') ? 'overdue' : statuses.includes('warning') ? 'warning' : 'ok';
+    const label = `${formatDate(readDate(key))}${km != null ? `, ${formatNumber(km)} km` : daily > 0 ? `, ${t('estimativa')} ${formatNumber(daily)} km` : ''}${statuses.length ? `, ${t('manutenção prevista')}` : ''}`;
+    cells += `<button type="button" class="cal-cell${key === today() ? ' today' : ''}${km != null ? ' read' : ' estimate'}${statuses.length ? ` event ${eventClass}` : ''}" data-date="${key}" aria-label="${escapeHtml(label)}">
+      <span class="cal-day">${day}</span>
+      <span class="cal-value">${km != null ? (previous ? `+${formatNumber(driven)}` : '•') : daily > 0 ? `~${formatNumber(daily)}` : ''}</span>
+      ${statuses.length ? '<i class="cal-dot"></i>' : ''}
+    </button>`;
+  }
+  $('#calendarGrid').innerHTML = cells;
+  $('#calendarGrid').querySelectorAll('[data-date]').forEach(button => button.addEventListener('click', () => openDay(button.dataset.date)));
+  const upcoming = state.maintenance.map(item => ({ item, data: maintenanceStatus(item) })).filter(entry => entry.data.forecastDate).sort((a, b) => a.data.forecastDate - b.data.forecastDate).slice(0, 3);
+  $('#calendarForecast').innerHTML = upcoming.length ? `<strong class="forecast-title">${t('Próximas manutenções')}</strong>${upcoming.map(({ item, data }) => `<div class="forecast-row"><i class="legend-dot ${data.status}"></i><span>${escapeHtml(item.name)}</span><strong>${formatDate(data.forecastDate)}</strong></div>`).join('')}` : '';
+}
+
+function openDay(key) {
+  const history = sortedReadings();
+  const existing = history.find(reading => reading.date === key);
+  const estimate = estimateKm(key);
+  $('#dayDate').value = key;
+  $('#dayDateLabel').textContent = formatDate(readDate(key));
+  $('#dayKm').value = existing ? Number(existing.km) : Math.round(estimate ?? Number(state.bike.currentKm));
+  $('#deleteDayButton').classList.toggle('hidden', !existing);
+  const previous = history.filter(reading => reading.date < key).at(-1);
+  const next = history.find(reading => reading.date > key);
+  const reference = previous ? `Leitura anterior: ${formatDate(readDate(previous.date))} · ${formatNumber(previous.km)} km` : next ? `Próxima leitura: ${formatDate(readDate(next.date))} · ${formatNumber(next.km)} km` : 'Primeira leitura do histórico';
+  $('#dayHint').textContent = `${reference}${estimate != null ? ` · ${t('estimativa')}: ${formatNumber(estimate)} km` : ''}.`;
+  $('#dayError').textContent = '';
+  $('#dayDialog').showModal();
+}
+
+$('#calendarTodayButton').addEventListener('click', () => openDay(today()));
+$('#calendarPrev').addEventListener('click', () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1); renderCalendar(); });
+$('#calendarNext').addEventListener('click', () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1); renderCalendar(); });
+$('#dayForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const key = $('#dayDate').value;
+  const value = Number($('#dayKm').value);
+  const history = sortedReadings();
+  const previous = history.filter(reading => reading.date < key).at(-1);
+  const next = history.find(reading => reading.date > key);
+  if (!Number.isFinite(value) || value < 0 || (previous && value < Number(previous.km)) || (next && value > Number(next.km))) {
+    $('#dayError').textContent = 'Informe um hodômetro entre a leitura anterior e a próxima.'; return;
+  }
+  const existing = state.odometerHistory.find(reading => reading.date === key);
+  if (existing) existing.km = value;
+  else state.odometerHistory.push({ date: key, km: value });
+  state.odometerHistory = sortedReadings().slice(-60);
+  const last = state.odometerHistory.at(-1);
+  if (key === today()) state.bike.currentKm = value;
+  else if (last && Number(last.km) > Number(state.bike.currentKm)) state.bike.currentKm = Number(last.km);
+  $('#dayDialog').close();
+  saveState();
+});
+$('#deleteDayButton').addEventListener('click', () => {
+  const key = $('#dayDate').value;
+  if (!confirm('Excluir esta leitura?')) return;
+  state.odometerHistory = state.odometerHistory.filter(reading => reading.date !== key);
+  const last = sortedReadings().at(-1);
+  if (key === today() && last) state.bike.currentKm = Number(last.km);
+  $('#dayDialog').close();
+  saveState();
+});
 
 function renderInspection() {
   const card = $('#inspectionCard');
@@ -903,6 +1025,7 @@ render();
 if (location.hash.startsWith('#sync=')) applySyncLink(location.hash).then(() => location.reload()).catch(() => alert('Link de sincronização inválido.'));
 else if (location.search.includes('action=km')) $('#kmDialog').showModal();
 else if (location.search.includes('action=checklist')) $('#openInspectionButton').click();
+else if (location.search.includes('action=calendar')) { $('#calendarTitle').scrollIntoView({ block: 'start' }); openDay(today()); }
 if (state.notificationsOn) checkNotifications();
 setInterval(checkNotifications, 5 * 60 * 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
