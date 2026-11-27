@@ -83,6 +83,7 @@ const photoAssessment = {
 const formatMoney = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const markerStatusColors = { ok: '#54d691', warning: '#ffc857', overdue: '#ff6961' };
 let bikeModel = null;
+let bikeFocus = null;
 const notifiedThisSession = new Set();
 
 const I18N = {
@@ -96,7 +97,7 @@ const I18N = {
     'Consumo médio': 'Average consumption', 'Gráfico de uso do hodômetro': 'Odometer usage chart',
     'GUIA VISUAL': 'VISUAL GUIDE', 'Explore sua moto': 'Explore your bike', 'Modelo 3D interativo': 'Interactive 3D model',
     'Esquerda': 'Left', 'Frente': 'Front', 'Direita': 'Right', 'Traseira': 'Rear',
-    'Arraste para girar • pinça ou roda para zoom': 'Drag to rotate • pinch or scroll to zoom',
+    'Toque em uma peça para ampliar • toque de novo para voltar': 'Tap a part to zoom in • tap again to go back',
     'Toque em um ponto': 'Tap a marker', 'Veja onde ficam os principais itens de manutenção.': 'See where the main maintenance items are.',
     'Representação visual aproximada.': 'Approximate visual representation.', 'Uso estimado': 'Estimated wear',
     'PRÓXIMOS CUIDADOS': 'UPCOMING', 'Manutenções': 'Maintenance', '+ Adicionar': '+ Add',
@@ -164,7 +165,7 @@ const I18N = {
     'Consumo médio': 'Consumo medio', 'Gráfico de uso do hodômetro': 'Gráfico de uso del odómetro',
     'GUIA VISUAL': 'GUÍA VISUAL', 'Explore sua moto': 'Explora tu moto', 'Modelo 3D interativo': 'Modelo 3D interactivo',
     'Esquerda': 'Izquierda', 'Frente': 'Delante', 'Direita': 'Derecha', 'Traseira': 'Atrás',
-    'Arraste para girar • pinça ou roda para zoom': 'Arrastra para girar • pellizca o rueda para zoom',
+    'Toque em uma peça para ampliar • toque de novo para voltar': 'Toca una pieza para ampliar • toca de nuevo para volver',
     'Toque em um ponto': 'Toca un punto', 'Veja onde ficam os principais itens de manutenção.': 'Mira dónde están los principales mantenimientos.',
     'Representação visual aproximada.': 'Representación visual aproximada.', 'Uso estimado': 'Uso estimado',
     'PRÓXIMOS CUIDADOS': 'PRÓXIMOS CUIDADOS', 'Manutenções': 'Mantenimientos', '+ Adicionar': '+ Añadir',
@@ -282,6 +283,16 @@ function loadState() {
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
 
 function showPart(name) {
+  if (!name) {
+    bikeFocus = null;
+    $('#partIcon').textContent = '☝️';
+    $('#partTitle').textContent = t('Toque em um ponto');
+    $('#partDescription').textContent = t('Veja onde ficam os principais itens de manutenção.');
+    $('#partWear').classList.add('hidden');
+    $('#partSafety').textContent = t('Representação visual aproximada.');
+    return;
+  }
+  bikeFocus = name;
   const [icon, title, description, safety] = partInfo[name];
   $('#partIcon').textContent = icon; $('#partTitle').textContent = title; $('#partDescription').textContent = description; $('#partSafety').textContent = safety;
   const maintenance = state.maintenance.find(item => item.name === partMaintenance[name]);
@@ -302,13 +313,16 @@ function showPart(name) {
 
 function initBikeViewer() {
   const views = [['Esquerda', 0], ['Frente', Math.PI / 2], ['Direita', Math.PI], ['Traseira', -Math.PI / 2]];
-  bikeModel = window.Moto3D.init($('#bike3dCanvas'), showPart);
+  bikeModel = window.Moto3D.init($('#bike3dCanvas'), name => {
+    if (name && name === bikeFocus) { bikeModel.focusPart(null); showPart(null); return; }
+    bikeModel.focusPart(name); showPart(name);
+  });
   views.forEach(([label, yaw], index) => {
     const button = document.createElement('button');
     button.className = 'angle-tab'; button.type = 'button'; button.textContent = label;
     button.setAttribute('aria-pressed', String(index === 0));
     button.addEventListener('click', () => {
-      bikeModel.setView(yaw);
+      bikeModel.setView(yaw); showPart(null);
       document.querySelectorAll('.angle-tab').forEach(tab => tab.setAttribute('aria-pressed', String(tab === button)));
     });
     $('#angleTabs').append(button);

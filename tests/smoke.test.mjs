@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const html = read('index.html');
 const app = read('app.js');
+const bike3d = read('bike3d.js');
 const css = read('styles.css');
 const sw = read('sw.js');
 const manifest = JSON.parse(read('manifest.webmanifest'));
@@ -45,9 +46,17 @@ test('manifesto e service worker apontam para a versão atual', () => {
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=km')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=checklist')));
   assert.ok(manifest.shortcuts.some(shortcut => shortcut.url.includes('action=calendar')));
-  assert.ok(sw.includes('onront-manutencoes-v19'));
-  ['styles.css?v=18', 'bike3d.js?v=18', 'qrcode.js?v=18', 'app.js?v=18'].forEach(asset => assert.ok(sw.includes(asset)));
-  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=18')));
+  assert.ok(sw.includes('onront-manutencoes-v20'));
+  ['styles.css?v=19', 'bike3d.js?v=19', 'qrcode.js?v=19', 'app.js?v=19'].forEach(asset => assert.ok(sw.includes(asset)));
+  html.match(/src="(app|bike3d|qrcode)\.js\?v=\d+"|href="styles\.css\?v=\d+"/g).forEach(ref => assert.ok(ref.includes('v=19')));
+});
+
+test('modelo 3D destaca a peça selecionada', () => {
+  assert.ok(bike3d.includes('focusPart(name)'));
+  assert.ok(bike3d.includes('sideParts'));
+  assert.ok(bike3d.includes('camera.zoomTarget = 1.85'));
+  assert.ok(app.includes('bikeModel.focusPart(name)'));
+  assert.ok(html.includes('Toque em uma peça para ampliar'));
 });
 
 test('nenhuma dependência externa em runtime', () => {

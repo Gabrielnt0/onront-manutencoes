@@ -177,6 +177,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 | 22 | Internacionalização (pt-BR / en / es) | Grande | ✅ Concluído |
 | 23 | Calendário mensal de km com leitura diária e previsão de manutenção | Médio | ✅ Concluído |
 | 24 | Estimativa de desgaste dos pneus originais Mottu | Rápido | ✅ Concluído |
+| 25 | Modelo 3D Mottu preto/verde com foco por peça (zoom + destaque) | Médio | ✅ Concluído |
 
 ## Decisões técnicas
 
@@ -195,6 +196,7 @@ Estado: **concluído e publicado** (26/11/2026) — commit `5711eea` + ajustes f
 - **18/21** — QR gerado em SVG por `qrcode.js` local (MIT, sem rede em runtime) e código de validação SHA-256 via `crypto.subtle` com fallback.
 - **23** — reuso de `state.odometerHistory` e `usageForecast()`; grade mensal com leitura real/estimada e `forecastDate` calculado em `maintenanceStatus()`; leitura validada entre registros vizinhos e compatível com o atalho `?action=calendar`.
 - **24** — `state.tires` por posição (`startKm`, `startDate`, `lifeKm`) com defaults editáveis 15.000 km dianteiro / 12.000 km traseiro; `tireForecasts()` calcula desgaste, km restantes e data usando `usageForecast()`; a previsão entra no calendário e no guia visual. Vida útil é referência geral, não dado oficial da Mottu.
+- **25** — geometria procedural com `part` por face/linha; `focusPart()` interpola zoom, deslocamento e opacidade: carenagens caem para 10% e demais peças para 28%, enquanto a selecionada fica opaca, contornada e centralizada. API mantém `setView`/`setStatus`; cores preto/verde e decalque “mottu” são referência visual aproximada, confirmada pelo usuário.
 
 ## Ordem de implementação
 
