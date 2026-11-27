@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=20">
   <title>ONRONT Manutenções</title>
 </head>
 <body>
@@ -93,8 +93,9 @@
       </div>
       <div class="angle-tabs" id="angleTabs" role="group" aria-label="Vistas rápidas do modelo 3D"></div>
       <div class="bike-viewer" id="bikeViewer">
-        <canvas id="bike3dCanvas" role="img" aria-label="Modelo tridimensional interativo aproximado da TVS Sport"></canvas>
-        <span class="swipe-hint">Toque em uma peça para ampliar • toque de novo para voltar</span>
+        <canvas id="bike3dCanvas" role="img" tabindex="0" aria-label="Modelo tridimensional interativo aproximado da TVS Sport" aria-describedby="bike3dHelp swipeHint"></canvas>
+        <span class="sr-only" id="bike3dHelp">Modelo 3D interativo da TVS Sport. Use setas para girar, Page Up/Page Down para escolher peças, + ou - para zoom, Home para sair da peça.</span>
+        <span class="swipe-hint" id="swipeHint">Arraste para girar • pinça/roda para zoom • toque em uma peça para ampliar • toque de novo para voltar</span>
       </div>
       <article class="part-panel" id="partPanel" aria-live="polite">
         <div class="part-panel-icon" id="partIcon">☝️</div>
@@ -120,7 +121,7 @@
 
     <article class="inspection-card" id="inspectionCard">
       <div class="inspection-info">
-        <span class="inspection-icon" aria-hidden="true">✅</span>
+        <span class="inspection-icon" id="inspectionIcon" aria-hidden="true">📋</span>
         <div><strong id="inspectionStatus">Nenhuma inspeção registrada</strong><span id="inspectionMeta">Verifique freios, pneus, corrente e luzes</span></div>
       </div>
       <button class="secondary small" id="openInspectionButton" type="button">Checklist</button>
@@ -363,8 +364,8 @@
 
   <div class="service-order" id="serviceOrder" aria-hidden="true"></div>
 
-  <script src="bike3d.js?v=19" defer></script>
-  <script src="qrcode.js?v=19" defer></script>
-  <script src="app.js?v=19" defer></script>
+  <script src="bike3d.js?v=20" defer></script>
+  <script src="qrcode.js?v=20" defer></script>
+  <script src="app.js?v=20" defer></script>
 </body>
 </html>

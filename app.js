@@ -1,31 +1,97 @@
 const STORAGE_KEY = 'moto-em-dia-v1';
 const DAY = 86400000;
+const SCHEDULE_VERSION = 'mottu-sport-2026';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const readDate = key => new Date(`${key}T12:00:00`);
+const today = () => dateKey(new Date());
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 const defaultTheme = () => matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+const validDateKey = value => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = readDate(value);
+  return !Number.isNaN(date.getTime()) && dateKey(date) === value;
+};
+const isRecord = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const cleanList = value => Array.isArray(value) ? value.filter(isRecord) : [];
+const numberOr = (value, fallback = 0) => {
+  const number = Number(value);
+  return value === '' || value == null || !Number.isFinite(number) ? fallback : number;
+};
+const nonNegative = (value, fallback = 0) => Math.max(0, numberOr(value, fallback));
+const optionalNumber = value => {
+  const number = numberOr(value, NaN);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+};
+const normalizeHistory = value => cleanList(value)
+  .filter(reading => validDateKey(reading.date) && Number.isFinite(Number(reading.km)) && Number(reading.km) >= 0)
+  .map(reading => ({ date: reading.date, km: Number(reading.km) }))
+  .sort((a, b) => a.date.localeCompare(b.date)).slice(-60);
+const normalizeMaintenance = value => cleanList(value).map(item => ({
+  ...item,
+  id: item.id || uid(),
+  name: String(item.name || '').trim() || 'Manutenção',
+  lastKm: nonNegative(item.lastKm),
+  lastDate: validDateKey(item.lastDate) ? item.lastDate : today(),
+  intervalKm: nonNegative(item.intervalKm),
+  intervalMonths: nonNegative(item.intervalMonths),
+  firstKm: optionalNumber(item.firstKm),
+  firstMonths: optionalNumber(item.firstMonths),
+  icon: typeof item.icon === 'string' ? item.icon : '🔧',
+  cost: nonNegative(item.cost),
+  historyUnknown: Boolean(item.historyUnknown)
+}));
 const defaultTires = () => ({
   front: { startKm: null, startDate: '', lifeKm: 15000 },
   rear: { startKm: null, startDate: '', lifeKm: 12000 }
 });
 const normalizeTires = data => {
   const base = defaultTires();
-  data.tires = data.tires || {};
+  data.tires = isRecord(data.tires) ? data.tires : {};
   ['front', 'rear'].forEach(position => {
-    const raw = data.tires[position] || {};
+    const raw = isRecord(data.tires[position]) ? data.tires[position] : {};
     const startKm = raw.startKm === '' || raw.startKm == null ? null : Number(raw.startKm);
+    const startDate = validDateKey(raw.startDate) ? raw.startDate : '';
     data.tires[position] = {
       startKm: Number.isFinite(startKm) && startKm >= 0 ? startKm : null,
-      startDate: typeof raw.startDate === 'string' ? raw.startDate : '',
+      startDate,
       lifeKm: Number(raw.lifeKm) > 0 ? Number(raw.lifeKm) : base[position].lifeKm
     };
   });
   return data;
 };
+const maintenancePresets = [
+  ['Óleo do motor', 5000, 3, '🛢️', 1000, 1], ['Revisão periódica', 5000, 3, '🔍', 1000, 1],
+  ['Inspeção dos freios', 5000, 3, '🛑', 1000, 1], ['Inspeção dos pneus', 5000, 3, '◉', 1000, 1],
+  ['Corrente: limpar, lubrificar e ajustar', 5000, 3, '⛓️', 1000, 1], ['Filtro de ar', 12000, 0, '🌬️', 12000, 0],
+  ['Vela de ignição', 12000, 0, '⚡', 12000, 0], ['Óleo da bengala dianteira', 18000, 0, '🔧', 18000, 0],
+  ['Filtro de combustível', 24000, 0, '⛽', 24000, 0]
+];
+const defaultMaintenance = () => maintenancePresets.map(([name, intervalKm, intervalMonths, icon, firstKm, firstMonths]) => ({
+  id: uid(), name, intervalKm, intervalMonths, firstKm, firstMonths, lastKm: 0, lastDate: today(), icon
+}));
+const scheduleUpgrades = {
+  'Óleo do motor': ['Óleo do motor', 5000, 3, 1000, 1],
+  'Pastilhas de freio': ['Inspeção dos freios', 5000, 3, 1000, 1],
+  'Pneus': ['Inspeção dos pneus', 5000, 3, 1000, 1],
+  'Relação e corrente': ['Corrente: limpar, lubrificar e ajustar', 5000, 3, 1000, 1],
+  'Filtro de ar': ['Filtro de ar', 12000, 0, 12000, 0],
+  'Vela de ignição': ['Vela de ignição', 12000, 0, 12000, 0]
+};
+function upgradeSchedule(data, version) {
+  if (version === SCHEDULE_VERSION) return;
+  data.maintenance.forEach(item => {
+    const upgrade = scheduleUpgrades[item.name];
+    if (upgrade) [item.name, item.intervalKm, item.intervalMonths, item.firstKm, item.firstMonths] = upgrade;
+  });
+  const present = new Set(data.maintenance.map(item => item.name));
+  defaultMaintenance().filter(item => !present.has(item.name)).forEach(item => data.maintenance.push(item));
+  data.scheduleVersion = SCHEDULE_VERSION;
+}
 const defaultState = () => normalizeTires({
   bike: { id: uid(), name: 'TVS Sport', year: '', currentKm: 0, historyUnknown: false },
   odometerHistory: [],
-  scheduleVersion: 'mottu-sport-2026',
+  scheduleVersion: SCHEDULE_VERSION,
   serviceLog: [],
   inspection: null,
   notificationsOn: false,
@@ -34,13 +100,7 @@ const defaultState = () => normalizeTires({
   ui: { theme: defaultTheme(), lang: 'pt' },
   push: { enabled: false, vapid: '', endpoint: '' },
   signature: null,
-  maintenance: [
-    ['Óleo do motor', 5000, 3, '🛢️', 1000, 1], ['Revisão periódica', 5000, 3, '🔍', 1000, 1],
-    ['Inspeção dos freios', 5000, 3, '🛑', 1000, 1], ['Inspeção dos pneus', 5000, 3, '◉', 1000, 1],
-    ['Corrente: limpar, lubrificar e ajustar', 5000, 3, '⛓️', 1000, 1], ['Filtro de ar', 12000, 0, '🌬️', 12000, 0],
-    ['Vela de ignição', 12000, 0, '⚡', 12000, 0], ['Óleo da bengala dianteira', 18000, 0, '🔧', 18000, 0],
-    ['Filtro de combustível', 24000, 0, '⛽', 24000, 0]
-  ].map(([name, intervalKm, intervalMonths, icon, firstKm, firstMonths]) => ({ id: uid(), name, intervalKm, intervalMonths, firstKm, firstMonths, lastKm: 0, lastDate: today(), icon }))
+  maintenance: defaultMaintenance()
 });
 
 let state = loadState();
@@ -93,6 +153,11 @@ const I18N = {
     'Atualizar km': 'Update km', 'Em dia': 'On track', 'Atenção': 'Attention', 'Vencidas': 'Overdue',
     'ASSISTENTE PREVENTIVO': 'PREVENTIVE ASSISTANT', 'Previsão inteligente': 'Smart forecast',
     'Ritmo de uso': 'Usage rate', 'Aprendendo': 'Learning', 'Próximo marco': 'Next milestone',
+    'VENCIDO': 'OVERDUE', 'ATENÇÃO': 'ATTENTION',
+    'Revisão periódica': 'Periodic service', 'Inspeção dos freios': 'Brake inspection', 'Inspeção dos pneus': 'Tire inspection',
+    'Corrente: limpar, lubrificar e ajustar': 'Chain: clean, lubricate and adjust', 'Óleo da bengala dianteira': 'Fork oil',
+    'Filtro de combustível': 'Fuel filter', 'Vela de ignição': 'Spark plug', 'Histórico desconhecido': 'Unknown history',
+    'dias': 'days', 'km': 'km',
     'Custo acumulado': 'Total cost', 'Serviços registrados': 'Services logged', 'Custo por km': 'Cost per km',
     'Consumo médio': 'Average consumption', 'Gráfico de uso do hodômetro': 'Odometer usage chart',
     'GUIA VISUAL': 'VISUAL GUIDE', 'Explore sua moto': 'Explore your bike', 'Modelo 3D interativo': 'Interactive 3D model',
@@ -153,7 +218,74 @@ const I18N = {
     'A estimativa usa a km desde a instalação e a vida útil informada. Confira os sulcos e o indicador TWI: não substitui inspeção física.': 'The estimate uses mileage since installation and the informed life. Check tread grooves and the TWI marker: it does not replace a physical inspection.',
     'Valores iniciais são referência geral, não especificação oficial da Mottu.': 'Initial values are a general reference, not an official Mottu specification.',
     'Deixe a km de instalação em branco se não souber. Você também pode registrar a troca no dia em que ela acontecer.': 'Leave installation mileage blank if you do not know it. You can also log the replacement on the day it happens.',
-    'Salvar estimativa': 'Save estimate'
+    'Arraste para girar • pinça/roda para zoom • toque em uma peça para ampliar • toque de novo para voltar': 'Drag to rotate • pinch/scroll to zoom • tap a part to zoom in • tap again to go back',
+    'Modelo 3D interativo da TVS Sport. Use setas para girar, Page Up/Page Down para escolher peças, + ou - para zoom, Home para sair da peça.': 'Interactive 3D model of the TVS Sport. Use arrow keys to rotate, Page Up/Page Down to choose parts, + or - to zoom, Home to clear the selection.',
+    'Motor': 'Engine', 'Óleo do motor': 'Engine oil', 'Corrente': 'Chain', 'Freio dianteiro': 'Front brake',
+    'Suspensão dianteira': 'Front suspension', 'Suspensão traseira': 'Rear suspension', 'Filtro de ar': 'Air filter',
+    'Farol': 'Headlight', 'Escapamento': 'Exhaust', 'Lanterna e piscas': 'Taillight and turn signals',
+    'Observe vazamentos, ruídos diferentes, dificuldade de partida ou perda de força.': 'Watch for leaks, unusual noises, hard starts or loss of power.',
+    'Não abra o motor sem conhecimento técnico.': 'Do not open the engine without technical knowledge.',
+    'Confira o nível com a moto vertical, em piso plano e conforme o procedimento do manual.': 'Check the level with the bike upright, on level ground and following the manual procedure.',
+    'Motor quente e óleo usado podem causar queimaduras.': 'A hot engine and used oil can cause burns.',
+    'Verifique limpeza, lubrificação e folga. A Mottu indica limite de 20–30 mm.': 'Check cleanliness, lubrication and slack. Mottu indicates a 20–30 mm limit.',
+    'Nunca inspecione com o motor ligado.': 'Never inspect with the engine running.',
+    'Observe disco, pinça, resposta da manete e sinais de desgaste ou vazamento.': 'Check the disc, caliper, lever response and signs of wear or leakage.',
+    'Freios são item crítico; procure uma oficina em caso de dúvida.': 'Brakes are critical; see a workshop if in doubt.',
+    'Verifique pressão a frio, cortes, objetos presos e indicador TWI.': 'Check cold pressure, cuts, embedded objects and the TWI marker.',
+    'Não pilote com bolhas, cortes profundos ou lona aparente.': 'Do not ride with blisters, deep cuts or exposed cords.',
+    'Verifique pressão a frio, desgaste central, cortes e indicador TWI.': 'Check cold pressure, center wear, cuts and the TWI marker.',
+    'Procure óleo nas bengalas, batidas secas, folga ou retorno irregular.': 'Look for oil on the forks, dry knocks, play or uneven rebound.',
+    'Reparo exige ferramentas e procedimento correto.': 'Repair requires the right tools and procedure.',
+    'Observe vazamentos, molas danificadas, fixações e comportamento em irregularidades.': 'Check leaks, damaged springs, mounts and behavior on rough roads.',
+    'Não desmonte o amortecedor sob carga.': 'Do not disassemble the shock absorber under load.',
+    'Fica sob a carenagem lateral. Em locais empoeirados, pode precisar de atenção antecipada.': 'It sits under the side fairing. In dusty areas it may need earlier attention.',
+    'Confirme o acesso e o elemento correto no manual.': 'Confirm access and the correct element in the manual.',
+    'Teste luz alta, baixa, alinhamento, lente e conexões visíveis.': 'Test high and low beam, alignment, lens and visible connectors.',
+    'Desligue a ignição antes de acessar conectores.': 'Turn off the ignition before accessing connectors.',
+    'Observe fixações, corrosão, ruído anormal e possíveis vazamentos.': 'Check mounts, corrosion, abnormal noise and possible leaks.',
+    'Espere esfriar completamente antes de tocar.': 'Let it cool completely before touching.',
+    'Teste lanterna, luz de freio e ambos os indicadores de direção.': 'Test the taillight, brake light and both turn signals.',
+    'Peças elétricas devem ser verificadas com cuidado.': 'Electrical parts must be checked carefully.',
+    'Fotos:': 'Photos:', 'confiança': 'confidence',
+    'Fotos: esta peça não pode ser avaliada visualmente com segurança.': 'Photos: this part cannot be safely assessed visually.',
+    'sem vazamento externo evidente': 'no evident external leak', 'média': 'medium', 'baixa': 'low',
+    'visível, mas sem resolução para medir folga ou alongamento': 'visible, but not clear enough to measure slack or stretch',
+    'disco visível; espessura da pastilha não mensurável': 'disc visible; pad thickness not measurable',
+    'sulcos visíveis, sem corte evidente no ângulo fotografado': 'tread visible, no evident cut in the photographed angle',
+    'sulcos visíveis, sem lona ou bolha aparente': 'tread visible, no exposed cord or blister apparent',
+    'sem vazamento evidente nas áreas visíveis': 'no evident leak in the visible areas',
+    'molas e fixações externas aparentam íntegras': 'springs and external mounts appear intact',
+    'lente aparentemente íntegra; funcionamento não confirmado': 'lens apparently intact; operation not confirmed',
+    'marcas de uso externas, sem dano estrutural evidente': 'external wear marks, no evident structural damage',
+    'lentes aparentemente íntegras; funcionamento não confirmado': 'lenses apparently intact; operation not confirmed',
+    'km usados desde a última referência': 'km used since the last reference',
+    'Histórico desconhecido: faça uma revisão de entrada antes de confiar nos prazos. Priorize óleo, freios, pneus, corrente, filtro de ar, vela e suspensão.': 'Unknown history: do an intake service before trusting the deadlines. Prioritize oil, brakes, tires, chain, air filter, plug and suspension.',
+    'Cadastre uma manutenção para iniciar a análise preventiva.': 'Add a maintenance item to start the preventive analysis.',
+    'km/mês': 'km/month', 'Prioridade alta: ': 'High priority: ', ' está vencida. Evite adiar e faça uma inspeção antes de continuar usando a moto.': ' is overdue. Do not delay and inspect it before riding again.',
+    'Antecipe ': 'Get ahead of ', ': ': ': ', 'Tudo em dia. O próximo item a acompanhar é ': 'All on track. The next item to watch is ', ', com ': ', with ',
+    'No ritmo atual, o assistente projeta os prazos usando ': 'At the current pace, the assistant projects deadlines using ', ' km por dia.': ' km per day.',
+    'Atualize o hodômetro em dias diferentes. Após duas leituras, o app aprende seu ritmo e passa a estimar datas.': 'Update the odometer on different days. After two readings, the app learns your pace and starts estimating dates.',
+    'Confirmar na ordem de serviço': 'Confirm on the work order', 'confirmar manutenção': 'confirm service', 'dias restantes': 'days remaining',
+    'Total gasto': 'Total spent', 'Preço médio': 'Average price', 'Editar': 'Edit', 'ativa': 'active',
+    'Leitura anterior:': 'Previous reading:', 'Próxima leitura:': 'Next reading:', 'Primeira leitura do histórico': 'First reading in history',
+    'Informe um hodômetro entre a leitura anterior e a próxima.': 'Enter an odometer value between the previous and the next reading.',
+    'Excluir esta leitura?': 'Delete this reading?', 'A quilometragem não pode ser menor que a atual.': 'Mileage cannot be lower than the current value.',
+    'Leitura automática indisponível neste navegador. Digite os km manualmente.': 'Automatic reading unavailable in this browser. Enter the km manually.',
+    'Nenhum número legível. Confirme os km manualmente.': 'No readable number. Confirm the km manually.',
+    'Valor lido da foto. Confira antes de salvar.': 'Value read from the photo. Check it before saving.',
+    'Não foi possível ler a foto. Digite os km manualmente.': 'Could not read the photo. Enter the km manually.',
+    'Informe um intervalo em km ou meses.': 'Enter an interval in km or months.',
+    'A km da última troca não pode superar a km atual.': 'The last change km cannot exceed the current mileage.',
+    'Excluir esta manutenção?': 'Delete this maintenance item?', 'Marque ao menos um item verificado.': 'Check at least one verified item.',
+    'Informe o nome e uma quilometragem válida.': 'Enter a name and a valid mileage.',
+    'Informe litros, valor e km válidos (até a km atual).': 'Enter valid liters, amount and km (up to the current mileage).',
+    'Escolha um arquivo.': 'Choose a file.', 'Arquivo acima de 8 MB.': 'File over 8 MB.',
+    'Não foi possível salvar o anexo.': 'Could not save the attachment.', 'Excluir anexo': 'Delete attachment', 'Excluir este anexo?': 'Delete this attachment?',
+    'IndexedDB indisponível.': 'IndexedDB unavailable.', 'Nenhum endpoint de push registrado.': 'No push endpoint registered.',
+    'Endpoint registrado:': 'Registered endpoint:', 'Arquivo de backup inválido.': 'Invalid backup file.',
+    'Não foi possível gerar o link.': 'Could not generate the link.', 'Link de sincronização inválido.': 'Invalid sync link.',
+    'Link copiado. Abra-o em outro dispositivo para transferir os dados.': 'Link copied. Open it on another device to transfer the data.',
+    'Resumo copiado para a área de transferência.': 'Summary copied to the clipboard.'
   },
   es: {
     'ONRONT MANUTENÇÕES': 'ONRONT MANTENIMIENTOS', 'Garagem: trocar de moto': 'Garaje: cambiar de moto',
@@ -161,6 +293,11 @@ const I18N = {
     'Atualizar km': 'Actualizar km', 'Em dia': 'Al día', 'Atenção': 'Atención', 'Vencidas': 'Vencidas',
     'ASSISTENTE PREVENTIVO': 'ASISTENTE PREVENTIVO', 'Previsão inteligente': 'Previsión inteligente',
     'Ritmo de uso': 'Ritmo de uso', 'Aprendendo': 'Aprendiendo', 'Próximo marco': 'Próximo hito',
+    'VENCIDO': 'VENCIDO', 'ATENÇÃO': 'ATENCIÓN',
+    'Revisão periódica': 'Revisión periódica', 'Inspeção dos freios': 'Revisión de frenos', 'Inspeção dos pneus': 'Revisión de neumáticos',
+    'Corrente: limpar, lubrificar e ajustar': 'Cadena: limpiar, lubricar y ajustar', 'Óleo da bengala dianteira': 'Aceite de la horquilla',
+    'Filtro de combustível': 'Filtro de combustible', 'Vela de ignição': 'Bujía', 'Histórico desconhecido': 'Historial desconocido',
+    'dias': 'días', 'km': 'km',
     'Custo acumulado': 'Coste acumulado', 'Serviços registrados': 'Servicios registrados', 'Custo por km': 'Coste por km',
     'Consumo médio': 'Consumo medio', 'Gráfico de uso do hodômetro': 'Gráfico de uso del odómetro',
     'GUIA VISUAL': 'GUÍA VISUAL', 'Explore sua moto': 'Explora tu moto', 'Modelo 3D interativo': 'Modelo 3D interactivo',
@@ -222,68 +359,181 @@ const I18N = {
     'A estimativa usa a km desde a instalação e a vida útil informada. Confira os sulcos e o indicador TWI: não substitui inspeção física.': 'La estimación usa el km desde la instalación y la vida útil indicada. Revisa los surcos y el indicador TWI: no sustituye una inspección física.',
     'Valores iniciais são referência geral, não especificação oficial da Mottu.': 'Los valores iniciales son una referencia general, no una especificación oficial de Mottu.',
     'Deixe a km de instalação em branco se não souber. Você também pode registrar a troca no dia em que ela acontecer.': 'Deja el km de instalación en blanco si no lo sabes. También puedes registrar el cambio el día en que ocurra.',
-    'Salvar estimativa': 'Guardar estimación'
+    'Arraste para girar • pinça/roda para zoom • toque em uma peça para ampliar • toque de novo para voltar': 'Arrastra para girar • pellizca/rueda para acercar • toca una pieza para ampliar • toca de nuevo para volver',
+    'Modelo 3D interativo da TVS Sport. Use setas para girar, Page Up/Page Down para escolher peças, + ou - para zoom, Home para sair da peça.': 'Modelo 3D interactivo de la TVS Sport. Usa las flechas para girar, Page Up/Page Down para elegir piezas, + o - para acercar y Home para salir de la pieza.',
+    'Motor': 'Motor', 'Óleo do motor': 'Aceite del motor', 'Corrente': 'Cadena', 'Freio dianteiro': 'Freno delantero',
+    'Suspensão dianteira': 'Suspensión delantera', 'Suspensão traseira': 'Suspensión trasera', 'Filtro de ar': 'Filtro de aire',
+    'Farol': 'Farola', 'Escapamento': 'Escape', 'Lanterna e piscas': 'Piloto e intermitentes',
+    'Observe vazamentos, ruídos diferentes, dificuldade de partida ou perda de força.': 'Observa fugas, ruidos distintos, dificultad de arranque o pérdida de fuerza.',
+    'Não abra o motor sem conhecimento técnico.': 'No abras el motor sin conocimientos técnicos.',
+    'Confira o nível com a moto vertical, em piso plano e conforme o procedimento do manual.': 'Comprueba el nivel con la moto vertical, en suelo llano y siguiendo el procedimiento del manual.',
+    'Motor quente e óleo usado podem causar queimaduras.': 'El motor caliente y el aceite usado pueden causar quemaduras.',
+    'Verifique limpeza, lubrificação e folga. A Mottu indica limite de 20–30 mm.': 'Revisa limpieza, lubricación y holgura. Mottu indica un límite de 20–30 mm.',
+    'Nunca inspecione com o motor ligado.': 'Nunca inspecciones con el motor encendido.',
+    'Observe disco, pinça, resposta da manete e sinais de desgaste ou vazamento.': 'Observa disco, pinza, respuesta de la maneta y signos de desgaste o fuga.',
+    'Freios são item crítico; procure uma oficina em caso de dúvida.': 'Los frenos son críticos; acude a un taller si tienes dudas.',
+    'Verifique pressão a frio, cortes, objetos presos e indicador TWI.': 'Verifica presión en frío, cortes, objetos clavados e indicador TWI.',
+    'Não pilote com bolhas, cortes profundos ou lona aparente.': 'No conduzcas con ampollas, cortes profundos o cordaje visible.',
+    'Verifique pressão a frio, desgaste central, cortes e indicador TWI.': 'Verifica presión en frío, desgaste central, cortes e indicador TWI.',
+    'Procure óleo nas bengalas, batidas secas, folga ou retorno irregular.': 'Busca aceite en las horquillas, golpes secos, holgura o retorno irregular.',
+    'Reparo exige ferramentas e procedimento correto.': 'La reparación exige herramientas y procedimiento correcto.',
+    'Observe vazamentos, molas danificadas, fixações e comportamento em irregularidades.': 'Observa fugas, muelles dañados, anclajes y comportamiento en irregularidades.',
+    'Não desmonte o amortecedor sob carga.': 'No desmontes el amortiguador bajo carga.',
+    'Fica sob a carenagem lateral. Em locais empoeirados, pode precisar de atenção antecipada.': 'Está bajo el carenado lateral. En lugares polvorientos puede necesitar atención anticipada.',
+    'Confirme o acesso e o elemento correto no manual.': 'Confirma el acceso y el elemento correcto en el manual.',
+    'Teste luz alta, baixa, alinhamento, lente e conexões visíveis.': 'Prueba luz alta, baja, alineación, lente y conexiones visibles.',
+    'Desligue a ignição antes de acessar conectores.': 'Apaga el encendido antes de acceder a los conectores.',
+    'Observe fixações, corrosão, ruído anormal e possíveis vazamentos.': 'Observa anclajes, corrosión, ruido anormal y posibles fugas.',
+    'Espere esfriar completamente antes de tocar.': 'Espera a que se enfríe por completo antes de tocar.',
+    'Teste lanterna, luz de freio e ambos os indicadores de direção.': 'Prueba piloto, luz de freno y ambos intermitentes.',
+    'Peças elétricas devem ser verificadas com cuidado.': 'Las piezas eléctricas deben revisarse con cuidado.',
+    'Fotos:': 'Fotos:', 'confiança': 'confianza',
+    'Fotos: esta peça não pode ser avaliada visualmente com segurança.': 'Fotos: esta pieza no puede evaluarse visualmente con seguridad.',
+    'sem vazamento externo evidente': 'sin fuga externa evidente', 'média': 'media', 'baixa': 'baja',
+    'visível, mas sem resolução para medir folga ou alongamento': 'visible, pero sin resolución para medir holgura o estiramiento',
+    'disco visível; espessura da pastilha não mensurável': 'disco visible; grosor de la pastilla no medible',
+    'sulcos visíveis, sem corte evidente no ângulo fotografado': 'surcos visibles, sin corte evidente en el ángulo fotografiado',
+    'sulcos visíveis, sem lona ou bolha aparente': 'surcos visibles, sin cordaje ni ampolla aparente',
+    'sem vazamento evidente nas áreas visíveis': 'sin fuga evidente en las áreas visibles',
+    'molas e fixações externas aparentam íntegras': 'muelles y anclajes externos parecen íntegros',
+    'lente aparentemente íntegra; funcionamento não confirmado': 'lente aparentemente íntegra; funcionamiento no confirmado',
+    'marcas de uso externas, sem dano estrutural evidente': 'marcas de uso externas, sin daño estructural evidente',
+    'lentes aparentemente íntegras; funcionamento não confirmado': 'lentes aparentemente íntegras; funcionamiento no confirmado',
+    'km usados desde a última referência': 'km usados desde la última referencia',
+    'Histórico desconhecido: faça uma revisão de entrada antes de confiar nos prazos. Priorize óleo, freios, pneus, corrente, filtro de ar, vela e suspensão.': 'Historial desconocido: haz una revisión de entrada antes de fiarte de los plazos. Prioriza aceite, frenos, neumáticos, cadena, filtro de aire, bujía y suspensión.',
+    'Cadastre uma manutenção para iniciar a análise preventiva.': 'Añade un mantenimiento para iniciar el análisis preventivo.',
+    'km/mês': 'km/mes', 'Prioridade alta: ': 'Prioridad alta: ', ' está vencida. Evite adiar e faça uma inspeção antes de continuar usando a moto.': ' está vencido. No lo dejes y revísalo antes de seguir usando la moto.',
+    'Antecipe ': 'Anticípate a ', ': ': ': ', 'Tudo em dia. O próximo item a acompanhar é ': 'Todo al día. El próximo elemento a vigilar es ', ', com ': ', con ',
+    'No ritmo atual, o assistente projeta os prazos usando ': 'Al ritmo actual, el asistente proyecta los plazos usando ', ' km por dia.': ' km por día.',
+    'Atualize o hodômetro em dias diferentes. Após duas leituras, o app aprende seu ritmo e passa a estimar datas.': 'Actualiza el odómetro en días distintos. Tras dos lecturas, la app aprende tu ritmo y empieza a estimar fechas.',
+    'Confirmar na ordem de serviço': 'Confirmar en la orden de trabajo', 'confirmar manutenção': 'confirmar mantenimiento', 'dias restantes': 'días restantes',
+    'Total gasto': 'Gasto total', 'Preço médio': 'Precio medio', 'Editar': 'Editar', 'ativa': 'activa',
+    'Leitura anterior:': 'Lectura anterior:', 'Próxima leitura:': 'Próxima lectura:', 'Primeira leitura do histórico': 'Primera lectura del historial',
+    'Informe um hodômetro entre a leitura anterior e a próxima.': 'Indica un odómetro entre la lectura anterior y la siguiente.',
+    'Excluir esta leitura?': '¿Eliminar esta lectura?', 'A quilometragem não pode ser menor que a atual.': 'El kilometraje no puede ser menor que el actual.',
+    'Leitura automática indisponível neste navegador. Digite os km manualmente.': 'Lectura automática no disponible en este navegador. Introduce los km manualmente.',
+    'Nenhum número legível. Confirme os km manualmente.': 'Ningún número legible. Confirma los km manualmente.',
+    'Valor lido da foto. Confira antes de salvar.': 'Valor leído de la foto. Comp ruébalo antes de guardar.',
+    'Não foi possível ler a foto. Digite os km manualmente.': 'No se pudo leer la foto. Introduce los km manualmente.',
+    'Informe um intervalo em km ou meses.': 'Indica un intervalo en km o meses.',
+    'A km da última troca não pode superar a km atual.': 'El km del último cambio no puede superar el kilometraje actual.',
+    'Excluir esta manutenção?': '¿Eliminar este mantenimiento?', 'Marque ao menos um item verificado.': 'Marca al menos un elemento verificado.',
+    'Informe o nome e uma quilometragem válida.': 'Indica un nombre y un kilometraje válido.',
+    'Informe litros, valor e km válidos (até a km atual).': 'Indica litros, importe y km válidos (hasta el km actual).',
+    'Escolha um arquivo.': 'Elige un archivo.', 'Arquivo acima de 8 MB.': 'Archivo mayor de 8 MB.',
+    'Não foi possível salvar o anexo.': 'No se pudo guardar el adjunto.', 'Excluir anexo': 'Eliminar adjunto', 'Excluir este anexo?': '¿Eliminar este adjunto?',
+    'IndexedDB indisponível.': 'IndexedDB no disponible.', 'Nenhum endpoint de push registrado.': 'Ningún endpoint de push registrado.',
+    'Endpoint registrado:': 'Endpoint registrado:', 'Arquivo de backup inválido.': 'Archivo de copia no válido.',
+    'Não foi possível gerar o link.': 'No se pudo generar el enlace.', 'Link de sincronización inválido.': 'Enlace de sincronización no válido.',
+    'Link copiado. Abra-o em outro dispositivo para transferir os dados.': 'Enlace copiado. Ábrelo en otro dispositivo para transferir los datos.',
+    'Resumo copiado para a área de transferência.': 'Resumen copiado al portapapeles.'
   }
 };
-const t = text => I18N[state.ui.lang]?.[text] ?? text;
+const t = text => I18N[state.ui.lang]?.[text] ?? String(text);
+const isI18nKey = value => Object.values(I18N).some(dict => Object.hasOwn(dict, value));
+const isTranslationOf = (raw, source) => Object.values(I18N).some(dict => dict[source] === raw);
+const resolveI18nSource = (raw, cached) => {
+  if (cached !== undefined && cached !== null && isTranslationOf(raw, cached)) return cached;
+  return isI18nKey(raw) ? raw : null;
+};
+const setTextNode = (node, value) => {
+  const before = /^\s*/.exec(node.nodeValue)?.[0] ?? '';
+  const after = /\s*$/.exec(node.nodeValue)?.[0] ?? '';
+  node.nodeValue = `${before}${value}${after}`;
+};
 
 function applyLang() {
   document.documentElement.lang = state.ui.lang === 'pt' ? 'pt-BR' : state.ui.lang;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => node.parentElement?.closest('script, style, svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+  });
   let node;
   while ((node = walker.nextNode())) {
     const raw = node.nodeValue.trim();
     if (!raw) continue;
-    if (node.__srcText === undefined) node.__srcText = raw;
-    if (node.__srcText !== node.nodeValue) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t(node.__srcText));
-    else node.nodeValue = t(raw);
+    const source = resolveI18nSource(raw, node.__srcText);
+    if (source === null) { node.__srcText = null; continue; }
+    node.__srcText = source;
+    setTextNode(node, t(source));
   }
   document.querySelectorAll('[placeholder],[aria-label],[title]').forEach(element => {
     ['placeholder', 'aria-label', 'title'].forEach(attr => {
       const raw = element.getAttribute(attr);
       if (!raw) return;
-      if (element[`__src_${attr}`] === undefined) element[`__src_${attr}`] = raw;
-      element.setAttribute(attr, t(element[`__src_${attr}`]));
+      const cacheKey = `__src_${attr}`;
+      const source = resolveI18nSource(raw, element[cacheKey]);
+      if (source === null) { element[cacheKey] = null; return; }
+      element[cacheKey] = source;
+      element.setAttribute(attr, t(source));
     });
   });
 }
 
+function normalizeState(saved) {
+  if (!isRecord(saved) || !isRecord(saved.bike) || !Array.isArray(saved.maintenance)) return null;
+  const data = { ...saved };
+  data.bike = {
+    ...saved.bike,
+    id: saved.bike.id || uid(),
+    name: String(saved.bike.name || 'TVS Sport').trim() || 'TVS Sport',
+    year: typeof saved.bike.year === 'string' ? saved.bike.year : '',
+    currentKm: nonNegative(saved.bike.currentKm),
+    historyUnknown: Boolean(saved.bike.historyUnknown),
+    deliveryReviewKm: optionalNumber(saved.bike.deliveryReviewKm),
+    deliveryReviewDate: validDateKey(saved.bike.deliveryReviewDate) ? saved.bike.deliveryReviewDate : ''
+  };
+  data.maintenance = normalizeMaintenance(saved.maintenance);
+  data.odometerHistory = normalizeHistory(saved.odometerHistory);
+  data.serviceLog = cleanList(saved.serviceLog).map(entry => ({
+    ...entry, id: entry.id || uid(), name: String(entry.name || ''),
+    date: validDateKey(entry.date) ? entry.date : '', km: nonNegative(entry.km),
+    cost: nonNegative(entry.cost), note: typeof entry.note === 'string' ? entry.note : ''
+  }));
+  data.fuelLog = cleanList(saved.fuelLog).map(entry => ({
+    ...entry, id: entry.id || uid(), date: validDateKey(entry.date) ? entry.date : '',
+    km: nonNegative(entry.km), liters: nonNegative(entry.liters), price: nonNegative(entry.price),
+    station: typeof entry.station === 'string' ? entry.station : ''
+  }));
+  data.roster = cleanList(saved.roster).map(normalizeSnapshot).filter(Boolean);
+  data.inspection = isRecord(saved.inspection) && validDateKey(saved.inspection.date) ? {
+    date: saved.inspection.date, km: nonNegative(saved.inspection.km),
+    checks: isRecord(saved.inspection.checks) ? saved.inspection.checks : {}
+  } : null;
+  data.notificationsOn = Boolean(saved.notificationsOn);
+  data.signature = typeof saved.signature === 'string' && saved.signature.startsWith('data:image/') ? saved.signature : null;
+  data.ui = {
+    theme: ['dark', 'light'].includes(saved.ui?.theme) ? saved.ui.theme : defaultTheme(),
+    lang: ['pt', 'en', 'es'].includes(saved.ui?.lang) ? saved.ui.lang : 'pt'
+  };
+  data.push = {
+    enabled: Boolean(saved.push?.enabled),
+    vapid: typeof saved.push?.vapid === 'string' ? saved.push.vapid : '',
+    endpoint: typeof saved.push?.endpoint === 'string' ? saved.push.endpoint : ''
+  };
+  const scheduleVersion = typeof saved.scheduleVersion === 'string' && saved.scheduleVersion ? saved.scheduleVersion : '';
+  data.scheduleVersion = scheduleVersion || SCHEDULE_VERSION;
+  normalizeTires(data);
+  upgradeSchedule(data, scheduleVersion);
+  return data;
+}
+function normalizeSnapshot(saved) {
+  const data = normalizeState(saved);
+  if (!data) return null;
+  return {
+    bike: data.bike, odometerHistory: data.odometerHistory, scheduleVersion: data.scheduleVersion,
+    serviceLog: data.serviceLog, fuelLog: data.fuelLog, inspection: data.inspection,
+    maintenance: data.maintenance, tires: data.tires
+  };
+}
+
 function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved?.bike || !Array.isArray(saved.maintenance)) return defaultState();
-    saved.odometerHistory = Array.isArray(saved.odometerHistory) ? saved.odometerHistory : [];
-    saved.serviceLog = Array.isArray(saved.serviceLog) ? saved.serviceLog : [];
-    saved.roster = Array.isArray(saved.roster) ? saved.roster : [];
-    saved.inspection = saved.inspection && typeof saved.inspection === 'object' ? saved.inspection : null;
-    saved.notificationsOn = Boolean(saved.notificationsOn);
-    saved.fuelLog = Array.isArray(saved.fuelLog) ? saved.fuelLog : [];
-    saved.ui = { theme: defaultTheme(), lang: 'pt', ...(saved.ui || {}) };
-    saved.push = { enabled: false, vapid: '', endpoint: '', ...(saved.push || {}) };
-    saved.signature = saved.signature || null;
-    normalizeTires(saved);
-    if (!saved.bike.id) saved.bike.id = uid();
-    if (saved.scheduleVersion !== 'mottu-sport-2026') {
-      const upgrades = {
-        'Óleo do motor': ['Óleo do motor', 5000, 3, 1000, 1],
-        'Pastilhas de freio': ['Inspeção dos freios', 5000, 3, 1000, 1],
-        'Pneus': ['Inspeção dos pneus', 5000, 3, 1000, 1],
-        'Relação e corrente': ['Corrente: limpar, lubrificar e ajustar', 5000, 3, 1000, 1],
-        'Filtro de ar': ['Filtro de ar', 12000, 0, 12000, 0],
-        'Vela de ignição': ['Vela de ignição', 12000, 0, 12000, 0]
-      };
-      saved.maintenance.forEach(item => { const upgrade = upgrades[item.name]; if (upgrade) [item.name, item.intervalKm, item.intervalMonths, item.firstKm, item.firstMonths] = upgrade; });
-      const present = new Set(saved.maintenance.map(item => item.name));
-      defaultState().maintenance.filter(item => !present.has(item.name)).forEach(item => saved.maintenance.push(item));
-      saved.scheduleVersion = 'mottu-sport-2026';
-    }
-    return saved;
-  } catch { return defaultState(); }
+  try { return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY))) || defaultState(); }
+  catch { return defaultState(); }
 }
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
 
 function showPart(name) {
-  if (!name) {
+  if (!name || !partInfo[name]) {
     bikeFocus = null;
     $('#partIcon').textContent = '☝️';
     $('#partTitle').textContent = t('Toque em um ponto');
@@ -294,7 +544,8 @@ function showPart(name) {
   }
   bikeFocus = name;
   const [icon, title, description, safety] = partInfo[name];
-  $('#partIcon').textContent = icon; $('#partTitle').textContent = title; $('#partDescription').textContent = description; $('#partSafety').textContent = safety;
+  $('#partIcon').textContent = icon; $('#partTitle').textContent = t(title);
+  $('#partDescription').textContent = t(description); $('#partSafety').textContent = t(safety);
   const maintenance = state.maintenance.find(item => item.name === partMaintenance[name]);
   const wear = maintenance ? maintenanceStatus(maintenance) : null;
   const usedKm = maintenance ? Math.max(0, Number(state.bike.currentKm) - Number(maintenance.lastKm)) : 0;
@@ -305,9 +556,11 @@ function showPart(name) {
     $('#partWearFill').style.width = `${percent}%`;
     const tirePosition = name === 'Pneu dianteiro' ? 'front' : name === 'Pneu traseiro' ? 'rear' : null;
     const tire = tirePosition ? tireForecasts().find(item => item.position === tirePosition) : null;
-    $('#partWearMeta').textContent = `${formatNumber(usedKm)} km usados desde a última referência • ${wear.reason}${tire ? ` • ${t('Pneu:')} ${Math.round(tire.wear)}% (${formatNumber(tire.kmLeft)} ${t('km restantes')})` : ''}`;
+    $('#partWearMeta').textContent = `${formatNumber(usedKm)} ${t('km usados desde a última referência')} • ${wear.reason}${tire ? ` • ${t('Pneu:')} ${Math.round(tire.wear)}% (${formatNumber(tire.kmLeft)} ${t('km restantes')})` : ''}`;
     const visual = photoAssessment[name];
-    $('#partPhotoEstimate').textContent = visual ? `Fotos: ${visual[0]} (confiança ${visual[1]}).` : 'Fotos: esta peça não pode ser avaliada visualmente com segurança.';
+    $('#partPhotoEstimate').textContent = visual
+      ? `${t('Fotos:')} ${t(visual[0])} (${t('confiança')} ${t(visual[1])}).`
+      : t('Fotos: esta peça não pode ser avaliada visualmente com segurança.');
   }
 }
 
@@ -328,15 +581,16 @@ function initBikeViewer() {
     $('#angleTabs').append(button);
   });
 }
-function addMonths(dateString, months) { const date = new Date(`${dateString}T12:00:00`); date.setMonth(date.getMonth() + Number(months)); return date; }
-function formatDate(date) { return new Intl.DateTimeFormat('pt-BR').format(date); }
-function formatNumber(number) { return new Intl.NumberFormat('pt-BR').format(Math.max(0, Math.round(number))); }
+function addMonths(dateString, months) { const date = readDate(validDateKey(dateString) ? dateString : today()); date.setMonth(date.getMonth() + Number(months)); return date; }
+const locale = () => ({ pt: 'pt-BR', en: 'en-US', es: 'es-ES' })[state.ui.lang] || 'pt-BR';
+function formatDate(date) { return new Intl.DateTimeFormat(locale()).format(date); }
+function formatNumber(number) { return new Intl.NumberFormat(locale()).format(Math.max(0, Math.round(number))); }
 
 function usageForecast() {
-  const history = [...state.odometerHistory].sort((a, b) => a.date.localeCompare(b.date));
+  const history = sortedReadings();
   if (history.length < 2) return { daily: 0, monthly: 0 };
   const first = history[0], last = history.at(-1);
-  const days = Math.max(1, (new Date(`${last.date}T12:00:00`) - new Date(`${first.date}T12:00:00`)) / DAY);
+  const days = Math.max(1, (readDate(last.date) - readDate(first.date)) / DAY);
   const daily = Math.max(0, (Number(last.km) - Number(first.km)) / days);
   return { daily, monthly: daily * 30.44 };
 }
@@ -349,37 +603,44 @@ function renderSmartAssistant(items) {
   const health = state.bike.historyUnknown ? Math.min(55, Math.max(0, Math.round(100 - overdue * 25 - warning * 5))) : Math.max(0, Math.round(100 - overdue * 25 - warning * 10 - Math.max(0, worstProgress - 70) * .25));
   const currentKm = Number(state.bike.currentKm);
   const milestone = currentKm < 1000 ? 1000 : 1000 + (Math.floor((currentKm - 1000) / 5000) + 1) * 5000;
-  const urgent = items.sort((a, b) => b.data.progress - a.data.progress)[0];
+  const urgent = [...items].sort((a, b) => b.data.progress - a.data.progress)[0];
   $('#healthScore').textContent = health;
   $('#healthScore').parentElement.dataset.level = health < 50 ? 'danger' : health < 75 ? 'warning' : 'ok';
-  $('#usageRate').textContent = usage.monthly ? `${formatNumber(usage.monthly)} km/mês` : 'Aprendendo';
+  $('#usageRate').textContent = usage.monthly ? `${formatNumber(usage.monthly)} ${t('km/mês')}` : t('Aprendendo');
   $('#nextMilestone').textContent = `${formatNumber(milestone)} km`;
   $('#confirmDeliveryReviewButton').classList.toggle('hidden', !state.bike.historyUnknown || currentKm <= 0);
-  if (state.bike.historyUnknown) $('#smartInsight').textContent = 'Histórico desconhecido: faça uma revisão de entrada antes de confiar nos prazos. Priorize óleo, freios, pneus, corrente, filtro de ar, vela e suspensão.';
-  else if (!urgent) $('#smartInsight').textContent = 'Cadastre uma manutenção para iniciar a análise preventiva.';
-  else if (urgent.data.status === 'overdue') $('#smartInsight').textContent = `Prioridade alta: ${urgent.item.name} está vencida. Evite adiar e faça uma inspeção antes de continuar usando a moto.`;
-  else if (urgent.data.status === 'warning') $('#smartInsight').textContent = `Antecipe ${urgent.item.name}: ${urgent.data.reason.toLowerCase()}.`;
-  else $('#smartInsight').textContent = `Tudo em dia. O próximo item a acompanhar é ${urgent.item.name}, com ${urgent.data.reason.toLowerCase()}.`;
-  $('#learningHint').textContent = usage.daily ? `No ritmo atual, o assistente projeta os prazos usando ${usage.daily.toFixed(1).replace('.', ',')} km por dia.` : 'Atualize o hodômetro em dias diferentes. Após duas leituras, o app aprende seu ritmo e passa a estimar datas.';
+  if (state.bike.historyUnknown) $('#smartInsight').textContent = t('Histórico desconhecido: faça uma revisão de entrada antes de confiar nos prazos. Priorize óleo, freios, pneus, corrente, filtro de ar, vela e suspensão.');
+  else if (!urgent) $('#smartInsight').textContent = t('Cadastre uma manutenção para iniciar a análise preventiva.');
+  else if (urgent.data.status === 'overdue') $('#smartInsight').textContent = `${t('Prioridade alta: ')}${t(urgent.item.name)}${t(' está vencida. Evite adiar e faça uma inspeção antes de continuar usando a moto.')}`;
+  else if (urgent.data.status === 'warning') $('#smartInsight').textContent = `${t('Antecipe ')}${t(urgent.item.name)}${t(': ')}${t(urgent.data.reason.toLowerCase())}.`;
+  else $('#smartInsight').textContent = `${t('Tudo em dia. O próximo item a acompanhar é ')}${t(urgent.item.name)}${t(', com ')}${t(urgent.data.reason.toLowerCase())}.`;
+  $('#learningHint').textContent = usage.daily
+    ? `${t('No ritmo atual, o assistente projeta os prazos usando ')}${usage.daily.toFixed(1).replace('.', ',')}${t(' km por dia.')}`
+    : t('Atualize o hodômetro em dias diferentes. Após duas leituras, o app aprende seu ritmo e passa a estimar datas.');
 }
 
 function maintenanceStatus(item) {
-  const kmLimit = Number(item.intervalKm) > 0 ? (Number(item.lastKm) === 0 && Number(item.firstKm) > 0 ? Number(item.firstKm) : Number(item.lastKm) + Number(item.intervalKm)) : Infinity;
-  const kmLeft = kmLimit - Number(state.bike.currentKm);
-  const monthsToUse = Number(item.lastKm) === 0 && Number(item.firstMonths) > 0 ? Number(item.firstMonths) : Number(item.intervalMonths);
-  const dateLimit = monthsToUse > 0 ? addMonths(item.lastDate, monthsToUse) : null;
+  const lastKm = nonNegative(item.lastKm);
+  const currentKm = nonNegative(state.bike.currentKm);
+  const intervalKm = nonNegative(item.intervalKm);
+  const lastDate = validDateKey(item.lastDate) ? item.lastDate : today();
+  const kmLimit = intervalKm > 0 ? (lastKm === 0 && Number(item.firstKm) > 0 ? Number(item.firstKm) : lastKm + intervalKm) : Infinity;
+  const kmLeft = kmLimit - currentKm;
+  const monthsToUse = lastKm === 0 && Number(item.firstMonths) > 0 ? Number(item.firstMonths) : nonNegative(item.intervalMonths);
+  const dateLimit = monthsToUse > 0 ? addMonths(lastDate, monthsToUse) : null;
+  const dateStart = readDate(lastDate);
   const daysLeft = dateLimit ? Math.ceil((dateLimit - new Date()) / DAY) : Infinity;
-  const kmProgress = Number.isFinite(kmLimit) ? (Number(state.bike.currentKm) - Number(item.lastKm)) / Number(item.intervalKm) : 0;
-  const dateProgress = dateLimit ? (new Date() - new Date(`${item.lastDate}T12:00:00`)) / (dateLimit - new Date(`${item.lastDate}T12:00:00`)) : 0;
-  const progress = Math.max(kmProgress, dateProgress, 0);
-  if ((state.bike.historyUnknown || item.historyUnknown) && Number(item.lastKm) === 0) return { status: 'warning', progress: 90, reason: item.historyUnknown ? 'Confirmar na ordem de serviço' : 'Histórico desconhecido', next: 'confirmar manutenção', forecastDate: null };
+  const kmProgress = Number.isFinite(kmLimit) ? (currentKm - lastKm) / intervalKm : 0;
+  const dateProgress = dateLimit && dateLimit > dateStart ? (new Date() - dateStart) / (dateLimit - dateStart) : 0;
+  const progress = Math.max(kmProgress, Number.isFinite(dateProgress) ? dateProgress : 0, 0);
+  if ((state.bike.historyUnknown || item.historyUnknown) && lastKm === 0) return { status: 'warning', progress: 90, reason: t(item.historyUnknown ? 'Confirmar na ordem de serviço' : 'Histórico desconhecido'), next: t('confirmar manutenção'), forecastDate: null };
   const overdue = kmLeft <= 0 || daysLeft <= 0;
-  const warning = !overdue && (kmLeft <= Math.max(300, Number(item.intervalKm) * .1) || daysLeft <= 30 || progress >= .9);
-  const reason = kmLeft <= 0 ? `${formatNumber(Math.abs(kmLeft))} ${t('km atrasado')}` : daysLeft <= 0 ? `${Math.abs(daysLeft)} ${t('dias atrasado')}` : warning ? (kmLeft / Math.max(daysLeft, 1) < 15 ? `${t('Faltam')} ${formatNumber(kmLeft)} km` : `${t('Faltam')} ${daysLeft} dias`) : Number.isFinite(kmLeft) ? `${formatNumber(kmLeft)} ${t('km restantes')}` : `${daysLeft} dias restantes`;
+  const warning = !overdue && (kmLeft <= Math.max(300, intervalKm * .1) || daysLeft <= 30 || progress >= .9);
+  const reason = kmLeft <= 0 ? `${formatNumber(Math.abs(kmLeft))} ${t('km atrasado')}` : daysLeft <= 0 ? `${Math.abs(daysLeft)} ${t('dias atrasado')}` : warning ? (kmLeft / Math.max(daysLeft, 1) < 15 ? `${t('Faltam')} ${formatNumber(kmLeft)} ${t('km')}` : `${t('Faltam')} ${daysLeft} ${t('dias')}`) : Number.isFinite(kmLeft) ? `${formatNumber(kmLeft)} ${t('km restantes')}` : `${daysLeft} ${t('dias restantes')}`;
   const usage = usageForecast();
   const forecastDate = usage.daily > 0 && Number.isFinite(kmLeft) && kmLeft > 0 ? new Date(Date.now() + (kmLeft / usage.daily) * DAY) : null;
   const effectiveDate = forecastDate && (!dateLimit || forecastDate < dateLimit) ? forecastDate : dateLimit;
-  const next = [Number.isFinite(kmLimit) ? `${formatNumber(kmLimit)} km` : '', effectiveDate ? `estimativa ${formatDate(effectiveDate)}` : ''].filter(Boolean).join(' · ');
+  const next = [Number.isFinite(kmLimit) ? `${formatNumber(kmLimit)} km` : '', effectiveDate ? `${t('estimativa')} ${formatDate(effectiveDate)}` : ''].filter(Boolean).join(' · ');
   return { status: overdue ? 'overdue' : warning ? 'warning' : 'ok', progress: Math.min(progress * 100, 100), reason, next, forecastDate: effectiveDate };
 }
 
@@ -395,7 +656,7 @@ function render() {
     const card = $('#maintenanceTemplate').content.firstElementChild.cloneNode(true);
     card.dataset.status = data.status;
     card.querySelector('.status-icon').textContent = item.icon || '🔧';
-    card.querySelector('.item-title').textContent = item.name;
+    card.querySelector('.item-title').textContent = t(item.name);
     card.querySelector('.item-detail').textContent = `${t('Próxima:')} ${data.next}`;
     card.querySelector('.wear-copy').textContent = `${t('Uso do ciclo:')} ${Math.round(data.progress)}% • ${formatNumber(Math.max(0, Number(state.bike.currentKm) - Number(item.lastKm)))} km`;
     card.querySelector('.progress-fill').style.width = `${data.progress}%`;
@@ -424,6 +685,7 @@ function render() {
   renderCalendar();
   renderTires();
   renderInspection();
+  showPart(bikeFocus);
   updateMarkerStatuses(analyzed);
   renderSmartAssistant(analyzed);
   updateAppBadge(counts.overdue + counts.warning);
@@ -456,19 +718,19 @@ function renderFuel() {
   const entries = [...state.fuelLog].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   const spent = entries.reduce((sum, entry) => sum + (Number(entry.price) || 0), 0);
   const liters = entries.reduce((sum, entry) => sum + (Number(entry.liters) || 0), 0);
-  $('#fuelStats').innerHTML = `<div><span>Total gasto</span><strong>${spent > 0 ? formatMoney(spent) : '—'}</strong></div><div><span>Litros</span><strong>${liters > 0 ? liters.toFixed(1).replace('.', ',') : '—'}</strong></div><div><span>Preço médio</span><strong>${liters > 0 ? formatMoney(spent / liters) + '/L' : '—'}</strong></div>`;
+  $('#fuelStats').innerHTML = `<div><span>${t('Total gasto')}</span><strong>${spent > 0 ? formatMoney(spent) : '—'}</strong></div><div><span>${t('Litros')}</span><strong>${liters > 0 ? liters.toFixed(1).replace('.', ',') : '—'}</strong></div><div><span>${t('Preço médio')}</span><strong>${liters > 0 ? formatMoney(spent / liters) + '/L' : '—'}</strong></div>`;
   if (!entries.length) { container.innerHTML = `<div class="empty">${t('Nenhum abastecimento registrado.')}</div>`; return; }
   const maxLiters = Math.max(...entries.map(entry => Number(entry.liters) || 0), 1);
   container.innerHTML = entries.slice(0, 20).map(entry => `
     <article class="fuel-entry">
       <div><strong>${formatMoney(Number(entry.price) || 0)}</strong><span>${escapeHtml(entry.date || '')} · ${formatNumber(entry.km)} km${entry.station ? ` · ${escapeHtml(entry.station)}` : ''}</span><div class="fuel-bar"><i style="width:${Math.round((Number(entry.liters) || 0) / maxLiters * 100)}%"></i></div></div>
-      <div class="fuel-entry-side"><strong>${Number(entry.liters).toFixed(2).replace('.', ',')} L</strong><button type="button" data-fuel-edit="${escapeHtml(entry.id)}" aria-label="Editar">✎</button></div>
+      <div class="fuel-entry-side"><strong>${Number(entry.liters).toFixed(2).replace('.', ',')} L</strong><button type="button" data-fuel-edit="${escapeHtml(entry.id)}" aria-label="${t('Editar')}">✎</button></div>
     </article>`).join('');
   container.querySelectorAll('[data-fuel-edit]').forEach(button => button.addEventListener('click', () => openFuel(state.fuelLog.find(entry => entry.id === button.dataset.fuelEdit))));
 }
 
 const DB_NAME = 'onront-files';
-let attachmentUrls = [];
+let attachmentUrls = [], attachmentRenderId = 0;
 function openFilesDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -502,26 +764,34 @@ async function compressImage(file) {
 }
 
 async function renderAttachments() {
-  attachmentUrls.forEach(url => URL.revokeObjectURL(url));
-  attachmentUrls = [];
+  const renderId = ++attachmentRenderId;
+  const urls = [];
   const container = $('#attachmentList');
-  if (!('indexedDB' in window)) { container.innerHTML = `<div class="empty">IndexedDB indisponível.</div>`; return; }
+  const commit = html => {
+    if (renderId !== attachmentRenderId) { urls.forEach(url => URL.revokeObjectURL(url)); return false; }
+    attachmentUrls.forEach(url => URL.revokeObjectURL(url));
+    attachmentUrls = urls;
+    container.innerHTML = html;
+    return true;
+  };
+  if (!('indexedDB' in window)) { commit(`<div class="empty">${t('IndexedDB indisponível.')}</div>`); return; }
   let files = [];
   try { files = (await getFiles()).filter(record => record.bikeId === state.bike.id); } catch { /* banco indisponível */ }
-  if (!files.length) { container.innerHTML = `<div class="empty">${t('Nenhum anexo. Use + Anexar para guardar fotos ou notas fiscais.')}</div>`; return; }
-  container.innerHTML = files.map(record => {
-    const url = URL.createObjectURL(record.blob); attachmentUrls.push(url);
+  if (!files.length) { commit(`<div class="empty">${t('Nenhum anexo. Use + Anexar para guardar fotos ou notas fiscais.')}</div>`); return; }
+  const html = files.map(record => {
+    const url = URL.createObjectURL(record.blob); urls.push(url);
     return `<article class="attachment-entry">
       <a href="${url}" target="_blank" rel="noopener">${record.type.startsWith('image/') ? `<img src="${url}" alt="">` : '<span class="file-icon">📄</span>'}<span><strong>${escapeHtml(record.note || record.name)}</strong><small>${escapeHtml(record.name)}</small></span></a>
-      <button type="button" data-file-delete="${escapeHtml(record.id)}" aria-label="Excluir anexo">✕</button>
+      <button type="button" data-file-delete="${escapeHtml(record.id)}" aria-label="${t('Excluir anexo')}">✕</button>
     </article>`;
   }).join('');
-  container.querySelectorAll('[data-file-delete]').forEach(button => button.addEventListener('click', async () => { if (confirm('Excluir este anexo?')) { await deleteFile(button.dataset.fileDelete); renderAttachments(); } }));
+  if (!commit(html)) return;
+  container.querySelectorAll('[data-file-delete]').forEach(button => button.addEventListener('click', async () => { if (confirm(t('Excluir este anexo?'))) { await deleteFile(button.dataset.fileDelete); renderAttachments(); } }));
 }
 
 function renderUsageChart() {
   const container = $('#usageChart');
-  const history = [...state.odometerHistory].sort((a, b) => a.date.localeCompare(b.date));
+  const history = sortedReadings();
   if (history.length < 2) { container.innerHTML = `<p class="chart-hint">${t('Gráfico de uso disponível após 2 leituras de hodômetro em dias diferentes.')}</p>`; return; }
   const width = 300, height = 74, pad = 8;
   const kms = history.map(reading => Number(reading.km));
@@ -540,9 +810,7 @@ function renderUsageChart() {
     <div class="chart-caption"><span>${history.length} ${t('leituras')} · ${formatNumber(minKm)}–${formatNumber(maxKm)} km</span><span>${usage.daily > 0 ? `${usage.daily.toFixed(1).replace('.', ',')} ${t('km/dia')}` : t('Ritmo em aprendizado')}</span></div>`;
 }
 
-const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const readDate = key => new Date(`${key}T12:00:00`);
-const sortedReadings = () => [...state.odometerHistory].filter(reading => reading.date && Number.isFinite(Number(reading.km))).sort((a, b) => a.date.localeCompare(b.date));
+const sortedReadings = () => normalizeHistory(state.odometerHistory);
 
 function estimateKm(key) {
   const history = sortedReadings();
@@ -566,7 +834,7 @@ calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 
 
 function renderCalendar() {
   const year = calendarMonth.getFullYear(), month = calendarMonth.getMonth();
-  $('#calendarMonth').textContent = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(calendarMonth);
+  $('#calendarMonth').textContent = new Intl.DateTimeFormat(locale(), { month: 'long', year: 'numeric' }).format(calendarMonth);
   const history = sortedReadings();
   const readings = new Map(history.map(reading => [reading.date, Number(reading.km)]));
   const daily = usageForecast().daily;
@@ -593,7 +861,7 @@ function renderCalendar() {
     const statuses = events.get(key) || [];
     const eventClass = statuses.includes('overdue') ? 'overdue' : statuses.includes('warning') ? 'warning' : 'ok';
     const label = `${formatDate(readDate(key))}${km != null ? `, ${formatNumber(km)} km` : daily > 0 ? `, ${t('estimativa')} ${formatNumber(daily)} km` : ''}${statuses.length ? `, ${t('manutenção prevista')}` : ''}`;
-    cells += `<button type="button" class="cal-cell${key === today() ? ' today' : ''}${km != null ? ' read' : ' estimate'}${statuses.length ? ` event ${eventClass}` : ''}" data-date="${key}" aria-label="${escapeHtml(label)}">
+    cells += `<button type="button" class="cal-cell${key === today() ? ' today' : ''}${km != null ? ' read' : ' estimate'}${statuses.length ? ` event ${eventClass}` : ''}" data-date="${key}"${key === today() ? ' aria-current="date"' : ''} aria-label="${escapeHtml(label)}">
       <span class="cal-day">${day}</span>
       <span class="cal-value">${km != null ? (previous ? `+${formatNumber(driven)}` : '•') : daily > 0 ? `~${formatNumber(daily)}` : ''}</span>
       ${statuses.length ? '<i class="cal-dot"></i>' : ''}
@@ -605,7 +873,7 @@ function renderCalendar() {
     ...state.maintenance.map(item => ({ name: item.name, data: maintenanceStatus(item) })),
     ...tireForecasts().filter(tire => tire.date).map(tire => ({ name: tire.name, data: { forecastDate: tire.date, status: tire.status } }))
   ].filter(entry => entry.data.forecastDate).sort((a, b) => a.data.forecastDate - b.data.forecastDate).slice(0, 3);
-  $('#calendarForecast').innerHTML = upcoming.length ? `<strong class="forecast-title">${t('Próximas manutenções')}</strong>${upcoming.map(({ name, data }) => `<div class="forecast-row"><i class="legend-dot ${data.status}"></i><span>${escapeHtml(name)}</span><strong>${formatDate(data.forecastDate)}</strong></div>`).join('')}` : '';
+  $('#calendarForecast').innerHTML = upcoming.length ? `<strong class="forecast-title">${t('Próximas manutenções')}</strong>${upcoming.map(({ name, data }) => `<div class="forecast-row"><i class="legend-dot ${data.status}"></i><span>${escapeHtml(t(name))}</span><strong>${formatDate(data.forecastDate)}</strong></div>`).join('')}` : '';
 }
 
 const tireNames = { front: 'Pneu dianteiro', rear: 'Pneu traseiro' };
@@ -691,7 +959,7 @@ function openDay(key) {
   $('#deleteDayButton').classList.toggle('hidden', !existing);
   const previous = history.filter(reading => reading.date < key).at(-1);
   const next = history.find(reading => reading.date > key);
-  const reference = previous ? `Leitura anterior: ${formatDate(readDate(previous.date))} · ${formatNumber(previous.km)} km` : next ? `Próxima leitura: ${formatDate(readDate(next.date))} · ${formatNumber(next.km)} km` : 'Primeira leitura do histórico';
+  const reference = previous ? `${t('Leitura anterior:')} ${formatDate(readDate(previous.date))} · ${formatNumber(previous.km)} km` : next ? `${t('Próxima leitura:')} ${formatDate(readDate(next.date))} · ${formatNumber(next.km)} km` : t('Primeira leitura do histórico');
   $('#dayHint').textContent = `${reference}${estimate != null ? ` · ${t('estimativa')}: ${formatNumber(estimate)} km` : ''}.`;
   $('#dayError').textContent = '';
   $('#dayDialog').showModal();
@@ -708,7 +976,7 @@ $('#dayForm').addEventListener('submit', event => {
   const previous = history.filter(reading => reading.date < key).at(-1);
   const next = history.find(reading => reading.date > key);
   if (!Number.isFinite(value) || value < 0 || (previous && value < Number(previous.km)) || (next && value > Number(next.km))) {
-    $('#dayError').textContent = 'Informe um hodômetro entre a leitura anterior e a próxima.'; return;
+    $('#dayError').textContent = t('Informe um hodômetro entre a leitura anterior e a próxima.'); return;
   }
   const existing = state.odometerHistory.find(reading => reading.date === key);
   if (existing) existing.km = value;
@@ -722,7 +990,7 @@ $('#dayForm').addEventListener('submit', event => {
 });
 $('#deleteDayButton').addEventListener('click', () => {
   const key = $('#dayDate').value;
-  if (!confirm('Excluir esta leitura?')) return;
+  if (!confirm(t('Excluir esta leitura?'))) return;
   state.odometerHistory = state.odometerHistory.filter(reading => reading.date !== key);
   const last = sortedReadings().at(-1);
   if (key === today() && last) state.bike.currentKm = Number(last.km);
@@ -737,10 +1005,12 @@ function renderInspection() {
   if (inspection?.date) {
     const count = Object.keys(inspection.checks || {}).length;
     card.classList.add('done'); card.classList.remove('pending');
-    $('#inspectionStatus').textContent = `${t('Última inspeção:')} ${formatDate(new Date(`${inspection.date}T12:00:00`))}`;
+    $('#inspectionIcon').textContent = '✅';
+    $('#inspectionStatus').textContent = `${t('Última inspeção:')} ${formatDate(readDate(inspection.date))}`;
     $('#inspectionMeta').textContent = `${count}/${total} ${t('itens verificados')} • ${formatNumber(inspection.km)} km`;
   } else {
     card.classList.add('pending'); card.classList.remove('done');
+    $('#inspectionIcon').textContent = '📋';
     $('#inspectionStatus').textContent = t('Nenhuma inspeção registrada');
     $('#inspectionMeta').textContent = t('Verifique freios, pneus, corrente e luzes');
   }
@@ -768,7 +1038,7 @@ function checkNotifications() {
 function openMaintenance(item) {
   $('#maintenanceForm').reset(); $('#maintenanceError').textContent = '';
   $('#maintenanceId').value = item?.id || '';
-  $('#maintenanceDialogTitle').textContent = item ? 'Editar manutenção' : 'Nova manutenção';
+  $('#maintenanceDialogTitle').textContent = t(item ? 'Editar manutenção' : 'Nova manutenção');
   $('#itemName').value = item?.name || ''; $('#lastKm').value = item?.lastKm ?? state.bike.currentKm;
   $('#intervalKm').value = item?.intervalKm || ''; $('#lastDate').value = item?.lastDate || today(); $('#intervalMonths').value = item?.intervalMonths || '';
   $('#itemCost').value = item?.cost > 0 ? item.cost : '';
@@ -780,7 +1050,7 @@ $('#updateKmButton').addEventListener('click', () => { $('#kmInput').value = sta
 $('#kmForm').addEventListener('submit', event => {
   if (event.submitter?.value === 'cancel') return;
   const value = Number($('#kmInput').value);
-  if (!Number.isFinite(value) || value < state.bike.currentKm) { event.preventDefault(); $('#kmError').textContent = 'A quilometragem não pode ser menor que a atual.'; return; }
+  if (!Number.isFinite(value) || value < state.bike.currentKm) { event.preventDefault(); $('#kmError').textContent = t('A quilometragem não pode ser menor que a atual.'); return; }
   state.bike.currentKm = value;
   state.bike.historyUnknown = $('#unknownHistoryInput').checked;
   const existingReading = state.odometerHistory.find(reading => reading.date === today());
@@ -794,16 +1064,16 @@ $('#odometerPhoto').addEventListener('change', async event => {
   const file = event.target.files[0];
   if (!file) return;
   const hint = $('#ocrHint');
-  if (!('TextDetector' in window)) { hint.textContent = 'Leitura automática indisponível neste navegador. Digite os km manualmente.'; return; }
+  if (!('TextDetector' in window)) { hint.textContent = t('Leitura automática indisponível neste navegador. Digite os km manualmente.'); return; }
   try {
     const bitmap = await createImageBitmap(file);
     const detected = await new TextDetector().detect(bitmap);
     const candidates = detected.flatMap(item => String(item.rawValue || '').replace(/\D/g, '')).filter(value => value.length >= 4);
     bitmap.close?.();
-    if (!candidates.length) { hint.textContent = 'Nenhum número legível. Confirme os km manualmente.'; return; }
+    if (!candidates.length) { hint.textContent = t('Nenhum número legível. Confirme os km manualmente.'); return; }
     $('#kmInput').value = candidates.sort((a, b) => b.length - a.length)[0];
-    hint.textContent = 'Valor lido da foto. Confira antes de salvar.';
-  } catch { hint.textContent = 'Não foi possível ler a foto. Digite os km manualmente.'; }
+    hint.textContent = t('Valor lido da foto. Confira antes de salvar.');
+  } catch { hint.textContent = t('Não foi possível ler a foto. Digite os km manualmente.'); }
   event.target.value = '';
 });
 
@@ -811,15 +1081,16 @@ $('#addMaintenanceButton').addEventListener('click', () => openMaintenance());
 $('#maintenanceForm').addEventListener('submit', event => {
   if (event.submitter?.value === 'cancel') return;
   const intervalKm = Number($('#intervalKm').value || 0), intervalMonths = Number($('#intervalMonths').value || 0), lastKm = Number($('#lastKm').value);
-  if ((!intervalKm && !intervalMonths) || lastKm > state.bike.currentKm) { event.preventDefault(); $('#maintenanceError').textContent = !intervalKm && !intervalMonths ? 'Informe um intervalo em km ou meses.' : 'A km da última troca não pode superar a km atual.'; return; }
+  if ((!intervalKm && !intervalMonths) || lastKm > state.bike.currentKm) { event.preventDefault(); $('#maintenanceError').textContent = t(!intervalKm && !intervalMonths ? 'Informe um intervalo em km ou meses.' : 'A km da última troca não pode superar a km atual.'); return; }
   const cost = Math.max(0, Number($('#itemCost').value || 0));
   const previous = state.maintenance.find(x => x.id === $('#maintenanceId').value);
-  const value = { id: $('#maintenanceId').value || uid(), name: $('#itemName').value.trim(), lastKm, intervalKm, lastDate: $('#lastDate').value, intervalMonths, icon: previous?.icon || '🔧', firstKm: previous?.firstKm, firstMonths: previous?.firstMonths, historyUnknown: false, cost };
+  const lastDate = validDateKey($('#lastDate').value) ? $('#lastDate').value : today();
+  const value = { id: $('#maintenanceId').value || uid(), name: $('#itemName').value.trim(), lastKm, intervalKm, lastDate, intervalMonths, icon: previous?.icon || '🔧', firstKm: previous?.firstKm, firstMonths: previous?.firstMonths, historyUnknown: false, cost };
   const changed = !previous || previous.lastKm !== lastKm || previous.lastDate !== value.lastDate || Number(previous.cost || 0) !== cost;
   if (changed) state.serviceLog.push({ id: uid(), name: value.name, date: value.lastDate, km: lastKm, cost });
   const index = state.maintenance.findIndex(item => item.id === value.id); index >= 0 ? state.maintenance[index] = value : state.maintenance.push(value); saveState();
 });
-$('#deleteMaintenanceButton').addEventListener('click', () => { if (confirm('Excluir esta manutenção?')) { state.maintenance = state.maintenance.filter(item => item.id !== $('#maintenanceId').value); $('#maintenanceDialog').close(); saveState(); } });
+$('#deleteMaintenanceButton').addEventListener('click', () => { if (confirm(t('Excluir esta manutenção?'))) { state.maintenance = state.maintenance.filter(item => item.id !== $('#maintenanceId').value); $('#maintenanceDialog').close(); saveState(); } });
 $('#settingsButton').addEventListener('click', () => {
   $('#bikeNameInput').value = state.bike.name; $('#bikeYearInput').value = state.bike.year;
   $('#unknownHistorySettings').checked = Boolean(state.bike.historyUnknown);
@@ -827,7 +1098,7 @@ $('#settingsButton').addEventListener('click', () => {
   $('#pushInput').checked = Boolean(state.push.enabled);
   $('#vapidInput').value = state.push.vapid || '';
   $('#themeSelect').value = state.ui.theme; $('#langSelect').value = state.ui.lang;
-  $('#pushStatus').textContent = state.push.endpoint ? `Endpoint registrado: ${state.push.endpoint.slice(0, 60)}…` : 'Nenhum endpoint de push registrado.';
+  $('#pushStatus').textContent = state.push.endpoint ? `${t('Endpoint registrado:')} ${state.push.endpoint.slice(0, 60)}…` : t('Nenhum endpoint de push registrado.');
   $('#settingsDialog').showModal();
 });
 $('#settingsForm').addEventListener('submit', async event => {
@@ -850,9 +1121,10 @@ async function setupPush(enabled) {
   state.push.enabled = Boolean(enabled);
   if (!enabled) { state.push.endpoint = ''; return; }
   if (!state.push.vapid || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const withTimeout = (promise, ms) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('push timeout')), ms))]);
   try {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(state.push.vapid) });
+    const registration = await withTimeout(navigator.serviceWorker.ready, 3000);
+    const subscription = await withTimeout(registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(state.push.vapid) }), 5000);
     state.push.endpoint = subscription.endpoint;
   } catch { state.push.endpoint = ''; }
 }
@@ -873,7 +1145,7 @@ $('#confirmDeliveryReviewButton').addEventListener('click', () => {
   saveState();
 });
 $('#exportButton').addEventListener('click', () => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' })); link.download = `moto-em-dia-${today()}.json`; link.click(); URL.revokeObjectURL(link.href); });
-$('#importInput').addEventListener('change', async event => { try { const data = JSON.parse(await event.target.files[0].text()); if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error(); if (!data.bike.id) data.bike.id = uid(); data.odometerHistory = Array.isArray(data.odometerHistory) ? data.odometerHistory : []; data.serviceLog = Array.isArray(data.serviceLog) ? data.serviceLog : []; data.roster = Array.isArray(data.roster) ? data.roster : []; data.inspection = data.inspection || null; data.notificationsOn = Boolean(data.notificationsOn); data.scheduleVersion = data.scheduleVersion || 'mottu-sport-2026'; data.fuelLog = Array.isArray(data.fuelLog) ? data.fuelLog : []; data.ui = { theme: defaultTheme(), lang: 'pt', ...(data.ui || {}) }; data.push = { enabled: false, vapid: '', endpoint: '', ...(data.push || {}) }; data.signature = data.signature || null; normalizeTires(data); state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert('Arquivo de backup inválido.'); } event.target.value = ''; });
+$('#importInput').addEventListener('change', async event => { try { const data = normalizeState(JSON.parse(await event.target.files[0].text())); if (!data) throw new Error(); state = data; applyTheme(); saveState(); $('#settingsDialog').close(); } catch { alert(t('Arquivo de backup inválido.')); } event.target.value = ''; });
 document.querySelectorAll('dialog .close').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 
 // --- Inspeção condicional (checklist) ---
@@ -887,15 +1159,24 @@ $('#inspectionForm').addEventListener('submit', event => {
   if (event.submitter?.value === 'cancel') return;
   const checks = {};
   document.querySelectorAll('#inspectionForm [name="chk"]:checked').forEach(input => { checks[input.value] = true; });
-  if (!Object.keys(checks).length) { event.preventDefault(); $('#inspectionError').textContent = 'Marque ao menos um item verificado.'; return; }
+  if (!Object.keys(checks).length) { event.preventDefault(); $('#inspectionError').textContent = t('Marque ao menos um item verificado.'); return; }
   state.inspection = { date: today(), km: state.bike.currentKm, checks };
   saveState();
 });
 $('#clearInspectionButton').addEventListener('click', () => { state.inspection = null; saveState(); $('#inspectionDialog').close(); });
 
 // --- Garagem (multi-moto por troca de snapshot) ---
-const bikeSnapshot = () => ({ bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion, serviceLog: state.serviceLog, fuelLog: state.fuelLog, inspection: state.inspection, maintenance: state.maintenance, tires: state.tires });
-const applyBikeSnapshot = snap => { state.bike = snap.bike; state.odometerHistory = Array.isArray(snap.odometerHistory) ? snap.odometerHistory : []; state.scheduleVersion = snap.scheduleVersion || 'mottu-sport-2026'; state.serviceLog = Array.isArray(snap.serviceLog) ? snap.serviceLog : []; state.fuelLog = Array.isArray(snap.fuelLog) ? snap.fuelLog : []; state.inspection = snap.inspection || null; state.maintenance = Array.isArray(snap.maintenance) ? snap.maintenance : defaultState().maintenance; state.tires = normalizeTires({ tires: snap.tires }).tires; };
+const bikeSnapshot = () => normalizeSnapshot({
+  bike: state.bike, odometerHistory: state.odometerHistory, scheduleVersion: state.scheduleVersion,
+  serviceLog: state.serviceLog, fuelLog: state.fuelLog, inspection: state.inspection,
+  maintenance: state.maintenance, tires: state.tires
+}) || normalizeSnapshot(defaultState());
+const applyBikeSnapshot = raw => {
+  const snap = normalizeSnapshot(raw) || normalizeSnapshot(defaultState());
+  state.bike = snap.bike; state.odometerHistory = snap.odometerHistory; state.scheduleVersion = snap.scheduleVersion;
+  state.serviceLog = snap.serviceLog; state.fuelLog = snap.fuelLog; state.inspection = snap.inspection;
+  state.maintenance = snap.maintenance; state.tires = snap.tires;
+};
 
 function renderGarage() {
   const list = $('#bikesList');
@@ -987,19 +1268,16 @@ $('#attachmentForm').addEventListener('submit', async event => {
 });
 
 // --- Calendário .ics ---
-const icsDate = date => date.toISOString().slice(0, 10).replace(/-/g, '');
+const icsDate = date => dateKey(date).replace(/-/g, '');
 const icsText = text => String(text).replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
 $('#calendarButton').addEventListener('click', () => {
-  const daily = usageForecast().daily;
   const events = state.maintenance.map(item => {
     const data = maintenanceStatus(item);
     if (data.status === 'ok') return null;
-    const kmLimit = Number(item.intervalKm) > 0 ? Number(item.lastKm) + Number(item.intervalKm) : Infinity;
-    const kmLeft = kmLimit - Number(state.bike.currentKm);
-    let date = Number(item.intervalMonths) > 0 ? addMonths(item.lastDate, Number(item.intervalMonths)) : null;
-    if (daily > 0 && Number.isFinite(kmLeft) && kmLeft > 0) { const forecast = new Date(Date.now() + (kmLeft / daily) * DAY); if (!date || forecast < date) date = forecast; }
-    if (!date) date = new Date(Date.now() + 7 * DAY);
-    return ['BEGIN:VEVENT', `UID:${item.id}@onront`, `DTSTAMP:${icsDate(new Date())}`, `DTSTART;VALUE=DATE:${icsDate(date)}`, `SUMMARY:${icsText(item.name)} (${data.status === 'overdue' ? 'VENCIDO' : 'ATENÇÃO'})`, `DESCRIPTION:${icsText(data.reason)}`, 'END:VEVENT'].join('\r\n');
+    const date = data.forecastDate && !Number.isNaN(data.forecastDate.getTime())
+      ? data.forecastDate
+      : readDate(dateKey(new Date(Date.now() + 7 * DAY)));
+    return ['BEGIN:VEVENT', `UID:${item.id}@onront`, `DTSTAMP:${icsDate(new Date())}`, `DTSTART;VALUE=DATE:${icsDate(date)}`, `SUMMARY:${icsText(t(item.name))} (${data.status === 'overdue' ? t('VENCIDO') : t('ATENÇÃO')})`, `DESCRIPTION:${icsText(data.reason)}`, 'END:VEVENT'].join('\r\n');
   }).filter(Boolean);
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ONRONT//Manutencoes//PT', 'CALSCALE:GREGORIAN', ...events, 'END:VCALENDAR'].join('\r\n');
   const link = document.createElement('a');
@@ -1028,9 +1306,8 @@ async function applySyncLink(hash) {
     const stream = new Blob([base64urlDecode(match[2])]).stream().pipeThrough(new DecompressionStream('gzip'));
     text = await new Response(stream).text();
   } else text = new TextDecoder().decode(base64urlDecode(match[2]));
-  const data = JSON.parse(text);
-  if (!data?.bike || !Array.isArray(data.maintenance)) throw new Error('Dados inválidos');
-  normalizeTires(data);
+  const data = normalizeState(JSON.parse(text));
+  if (!data) throw new Error('Dados inválidos');
   state = data; saveState();
   history.replaceState(null, '', location.pathname + location.search);
 }
@@ -1147,7 +1424,7 @@ $('#printOrderButton').addEventListener('click', async () => {
     </div>
     <h2>Itens de manutenção</h2>
     <table><thead><tr><th>Item</th><th>Status</th><th>Uso do ciclo</th><th>Próxima referência</th></tr></thead><tbody>
-      ${sorted.map(({ item, data }) => `<tr><td>${escapeHtml(item.name)}</td><td>${data.status === 'overdue' ? 'VENCIDO' : data.status === 'warning' ? 'ATENÇÃO' : 'Em dia'}</td><td>${Math.round(data.progress)}%</td><td>${escapeHtml(data.next)}</td></tr>`).join('')}
+      ${sorted.map(({ item, data }) => `<tr><td>${escapeHtml(t(item.name))}</td><td>${escapeHtml(t(data.status === 'overdue' ? 'VENCIDO' : data.status === 'warning' ? 'ATENÇÃO' : 'Em dia'))}</td><td>${Math.round(data.progress)}%</td><td>${escapeHtml(data.next)}</td></tr>`).join('')}
     </tbody></table>
     <h2>Serviços recentes</h2>
     ${recent.length ? `<table><thead><tr><th>Data</th><th>Item</th><th>Km</th><th>Custo</th></tr></thead><tbody>

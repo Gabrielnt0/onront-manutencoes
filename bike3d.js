@@ -202,6 +202,11 @@
     const camera = { yaw: 0, pitch: -0.10, zoom: 1, zoomTarget: 1, targetYaw: 0, focusX: 0, focusY: 0, focusTargetX: 0, focusTargetY: 0 };
     const markerColors = {};
     let width = 1, height = 1, dragging = false, moved = false, lastX = 0, lastY = 0, pinch = 0, projectedMarkers = [], animationFrame = 0, focus = null;
+    const pointers = new Map();
+    const pinchDistance = () => {
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
 
     const transform = ([x,y,z]) => {
       const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
@@ -308,31 +313,59 @@
     };
     const startAnimation = () => { if(!animationFrame) animationFrame=requestAnimationFrame(animate); };
     const localPoint = event => ({x:event.clientX-canvas.getBoundingClientRect().left,y:event.clientY-canvas.getBoundingClientRect().top});
-    canvas.addEventListener('pointerdown', event => { dragging=true; moved=false; lastX=event.clientX; lastY=event.clientY; canvas.setPointerCapture(event.pointerId); });
+    canvas.addEventListener('pointerdown', event => {
+      pointers.set(event.pointerId, {x:event.clientX,y:event.clientY});
+      canvas.setPointerCapture(event.pointerId);
+      if (pointers.size === 1) { dragging=true; moved=false; lastX=event.clientX; lastY=event.clientY; }
+      else if (pointers.size === 2) { moved=true; pinch=pinchDistance(); }
+    });
     canvas.addEventListener('pointermove', event => {
+      if(!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, {x:event.clientX,y:event.clientY});
+      if (pointers.size >= 2) {
+        const d=pinchDistance();
+        if(pinch) { camera.zoom=Math.max(.72,Math.min(2.4,camera.zoom*d/pinch)); camera.zoomTarget=camera.zoom; }
+        pinch=d; moved=true; draw(); return;
+      }
       if(!dragging) return;
       const dx=event.clientX-lastX, dy=event.clientY-lastY; moved ||= Math.abs(dx)+Math.abs(dy)>3;
       camera.yaw += dx*.009; camera.pitch=Math.max(-.42,Math.min(.32,camera.pitch+dy*.006)); camera.targetYaw=camera.yaw;
       if (focus) { const [cx,cy]=focusCenter(); camera.focusX=camera.focusTargetX=cx; camera.focusY=camera.focusTargetY=cy; }
       lastX=event.clientX; lastY=event.clientY; draw();
     });
-    canvas.addEventListener('pointerup', event => {
-      dragging=false;
-      if(!moved) {
-        const p=localPoint(event), hit=projectedMarkers.map(m=>({...m,d:Math.hypot(m.x-p.x,m.y-p.y)})).sort((a,b)=>a.d-b.d)[0];
-        if(hit?.d<28) onSelect(hit.name === focus ? null : hit.name);
-        else if(focus) onSelect(null);
+    const endPointer = (event, cancelled) => {
+      const multi = pointers.size >= 2;
+      pointers.delete(event.pointerId);
+      if (multi) {
+        pinch = pointers.size >= 2 ? pinchDistance() : 0;
+        dragging = pointers.size === 1;
+        if (dragging) { const [only]=[...pointers.values()]; lastX=only.x; lastY=only.y; }
+        return;
       }
-    });
+      dragging=false; pinch=0;
+      if(cancelled || moved) return;
+      const p=localPoint(event), hit=projectedMarkers.map(m=>({...m,d:Math.hypot(m.x-p.x,m.y-p.y)})).sort((a,b)=>a.d-b.d)[0];
+      if(hit?.d<28) onSelect(hit.name === focus ? null : hit.name);
+      else if(focus) onSelect(null);
+    };
+    canvas.addEventListener('pointerup', event => endPointer(event, false));
+    canvas.addEventListener('pointercancel', event => endPointer(event, true));
     canvas.addEventListener('wheel', event => { event.preventDefault(); camera.zoom=Math.max(.72,Math.min(2.4,camera.zoom-event.deltaY*.001)); camera.zoomTarget=camera.zoom; draw(); },{passive:false});
-    canvas.addEventListener('touchmove', event => {
-      if(event.touches.length===2) {
-        const d=Math.hypot(event.touches[0].clientX-event.touches[1].clientX,event.touches[0].clientY-event.touches[1].clientY);
-        if(pinch) { camera.zoom=Math.max(.72,Math.min(2.4,camera.zoom*d/pinch)); camera.zoomTarget=camera.zoom; }
-        pinch=d; draw();
+    canvas.addEventListener('keydown', event => {
+      const step = event.shiftKey ? .3 : .12;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') camera.targetYaw += event.key === 'ArrowLeft' ? -step : step;
+      else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') camera.pitch = Math.max(-.42, Math.min(.32, camera.pitch + (event.key === 'ArrowUp' ? -.05 : .05)));
+      else if (event.key === 'PageDown' || event.key === 'PageUp') {
+        const index = markers.findIndex(marker => marker.name === focus);
+        const next = event.key === 'PageDown' ? (index + 1) % markers.length : (index <= 0 ? markers.length - 1 : index - 1);
+        onSelect(markers[next].name);
       }
-    },{passive:true});
-    canvas.addEventListener('touchend',()=>{pinch=0;});
+      else if (event.key === '+' || event.key === '=') camera.zoomTarget = Math.min(2.4, camera.zoomTarget + .15);
+      else if (event.key === '-' || event.key === '_') camera.zoomTarget = Math.max(.72, camera.zoomTarget - .15);
+      else if (event.key === 'Home') onSelect(null);
+      else return;
+      event.preventDefault(); startAnimation();
+    });
     new ResizeObserver(draw).observe(canvas);
     draw();
     return {
